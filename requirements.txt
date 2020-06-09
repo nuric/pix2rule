@@ -1,0 +1,9 @@
+# Dependencies
+numpy
+pandas
+tensorflow
+# Tools
+jupyter
+# Plotting
+matplotlib
+seaborn
