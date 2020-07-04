@@ -4,6 +4,7 @@ pandas
 tensorflow
 # Tools
 jupyter
+invoke
 # Plotting
 matplotlib
 seaborn
