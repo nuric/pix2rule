@@ -17,6 +17,13 @@ parser.add_argument(
 )
 parser.add_argument("--seq_symbols", default=8, type=int, help="Number of symbols.")
 parser.add_argument(
+    "--seq_tasks",
+    nargs="*",
+    default=[],
+    type=int,
+    help="Tasks to generate, empty list for all.",
+)
+parser.add_argument(
     "--seq_train_size",
     default=1000,
     type=int,
@@ -74,14 +81,14 @@ def gen_all() -> Dict[str, np.ndarray]:
     """Generate all tasks."""
     gdata: Dict[str, List[np.ndarray]] = {"train": list(), "test": list()}
     # Get the number of available tasks
-    num_tasks = sum(
-        1 for _ in filter(lambda x: x.startswith("gen_task"), globals().keys())
-    )
+    tasks = [int(x[8:]) for x in globals().keys() if x.startswith("gen_task")]
+    tasks = C["seq_tasks"] or tasks
     # Generate each one of them
-    for i in range(1, num_tasks + 1):
+    for i in tasks:
         func = globals()["gen_task" + str(i)]
         task = [func() for _ in range(C["seq_gen_size"])]  # (S, 1+L+1)
         task = np.unique(np.stack(task), axis=0)  # (<S, 1+L+1)
+        np.random.shuffle(task)  # (<S, 1+L+1)
         # Split test set
         split = np.ceil(len(task) * C["seq_test_split"]).astype(int)
         gdata["test"].append(task[:split])
@@ -108,7 +115,8 @@ def load_data() -> Dict[str, tf.data.Dataset]:
     for k, arr in data.items():
         metadata[k] = arr.shape
         metadata[k + "_tasks"] = np.unique(arr[:, 0], return_counts=True)
-    logging.info("Generated sequence data %s", str(metadata))
+        metadata[k + "_labels"] = np.unique(arr[:, -1], return_counts=True)
+    logger.info("Generated sequence data %s", str(metadata))
     # ---------------------------
     # Convert to tf.data.Dataset
     # tfdata = tf.data.Dataset.from_tensor_slices({"input": data[:, :-1], "label": data[:, -1]})
