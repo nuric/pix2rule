@@ -24,11 +24,12 @@ def unify(
     inv_binary: tf.Tensor,
     batch_unary: tf.Tensor,
     batch_binary: tf.Tensor,
+    iterations: int = 1,
 ) -> tf.Tensor:
     """Unify given rules with a batch of examples."""
-    # inv_unary (I, N, N, P1)
+    # inv_unary (I, N, P1)
     # inv_binary (I, N, N, P2)
-    # batch_unary (B, M, M, P1)
+    # batch_unary (B, M, P1)
     # batch_binary (B, M, M, P2)
     # ---------------------------
     # Match unary conditions to form the initial assignment sets
@@ -49,18 +50,16 @@ def unify(
     # pair_match *= (1 - tf.eye(self.inv_inputs.shape[1])[..., None, None]) * (
     # 1 - tf.eye(inputs.shape[1])
     # )
-    pair_match *= 1 - tf.eye(batch_unary.shape[1])  # rule out self relations p(X,X)
+    # pair_match *= 1 - tf.eye(batch_unary.shape[1])  # rule out self relations p(X,X)
     # ---------------------------
     # Iterate over binary predicates
-    for _ in range(1):
+    for _ in range(iterations):
         # (B, I, N, M) x  (B, I, N, N, M, M) -> (B, I, N, N, M, M)
-        left_right = tf.einsum("bimk,bimnkj->bimnkj", uni_sets, pair_match)
+        reduct = tf.einsum("bimk,binj,bimnkj->bimnkj", uni_sets, uni_sets, pair_match)
         # (B, I, N, M)
-        lr_reduct = tf.reduce_prod(reduce_probsum(left_right, 4), 2)
-        # (B, I, N, M) x  (B, I, N, N, M, M) -> (B, I, N, N, M, M)
-        right_left = tf.einsum("binj,bimnkj->bimnkj", uni_sets, pair_match)
+        lr_reduct = tf.reduce_prod(reduce_probsum(reduct, 4), 2)
         # (B, I, N, M)
-        rl_reduct = tf.reduce_prod(reduce_probsum(right_left, 5), 3)
+        rl_reduct = tf.reduce_prod(reduce_probsum(reduct, 5), 3)
         uni_sets = lr_reduct * rl_reduct  # (B, I, N, M)
     # ---------------------------
     return uni_sets

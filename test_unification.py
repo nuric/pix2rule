@@ -1,7 +1,8 @@
 """Unit tests for graph based unification."""
 import os
+import re
 import unittest
-from typing import Tuple
+from typing import Tuple, List, Dict
 
 import tensorflow as tf
 
@@ -47,14 +48,79 @@ def batch_unify(inv_unary: tf.Tensor, inv_binary: tf.Tensor) -> tf.Tensor:
     return unify(inv_unary, inv_binary, *batch_examples)
 
 
+def get_rule_tensors(
+    num_rules: int, num_nodes: int, coords: List[str] = None
+) -> Tuple[tf.Tensor, tf.Tensor]:
+    """Create rule tensors based on given sparse coordinate patterns:
+    i#n#pos# - i#n#sym# - i#n#left# - i#n#same#
+    """
+    # ---------------------------
+    # Extract coordinates
+    indices: Dict[str, List[List[int]]] = {"unary": list(), "binary": list()}
+    for coord in coords or list():
+        idxs = [int(x) for x in re.findall(r"\d+", coord)]  # coord numbers
+        prefix = re.findall(r"\D+", coord)[-1]  # coord prefixes
+        if prefix == "pos":
+            indices["unary"].append(idxs)
+        elif prefix == "sym":
+            idxs[2] += 4  # offset pos predicate for sym
+            indices["unary"].append(idxs)
+        elif prefix == "left":
+            idxs.append(0)  # binary predicate number
+            indices["binary"].append(idxs)
+        elif prefix == "same":
+            idxs.append(1)  # binary predicate number
+            indices["binary"].append(idxs)
+            idxs = idxs.copy()
+            # same is symmetrical
+            idxs[1], idxs[2] = idxs[2], idxs[1]
+            indices["binary"].append(idxs)
+    # ---------------------------
+    # Create tensors
+    inv_unary = tf.zeros((num_rules, num_nodes, num_p1))
+    if indices["unary"]:
+        unary_inds = tf.constant(indices["unary"], dtype=tf.int64)  # (X, 3)
+        inv_unary = tf.sparse.SparseTensor(
+            unary_inds, tf.ones(len(indices["unary"])), (num_rules, num_nodes, num_p1)
+        )
+        inv_unary = tf.sparse.to_dense(inv_unary)
+    inv_binary = tf.zeros((num_rules, num_nodes, num_nodes, num_p2))
+    if indices["binary"]:
+        binary_inds = tf.constant(indices["binary"], dtype=tf.int64)  # (X,
+        inv_binary = tf.sparse.SparseTensor(
+            binary_inds,
+            tf.ones(len(indices["binary"])),
+            (num_rules, num_nodes, num_nodes, num_p2),
+        )
+        inv_binary = tf.sparse.to_dense(inv_binary)
+    # ---------------------------
+    return inv_unary, inv_binary
+
+
 class TestUnification(unittest.TestCase):
     """Unit test cases for graph based unification."""
 
+    def assert_all(self, got: tf.Tensor, expected: tf.Tensor):
+        """Assert all elements of tensors are equal."""
+        self.assertTrue(tf.reduce_all(got == expected))
+
     def test_blank_rule(self):
         """Rule with no conditions unify with all nodes."""
-        inv_unary = tf.zeros((2, 3, num_p1))  # (I, N, P1)
-        inv_binary = tf.zeros((2, 3, 3, num_p2))  # (I, N, N, P2)
-        res = batch_unify(inv_unary, inv_binary)  # (B, I, N, M)
+        res = batch_unify(*get_rule_tensors(2, 3))  # (B, I, N, M)
         self.assertEqual(res.shape, [2, 2, 3, 4])
-        all_uni = tf.reduce_all(res == tf.ones(res.shape))  # ()
-        self.assertTrue(all_uni)
+        self.assert_all(res, tf.ones(res.shape))
+
+    def test_single_unary_rule(self):
+        """Rule with a single node and 1 unary condition."""
+        rule = get_rule_tensors(1, 1, ["i0n0pos1"])
+        res = batch_unify(*rule)  # (B, I, N, M)
+        # Only 1 node can unify
+        expect = tf.constant([0, 1.0, 0, 0])
+        self.assert_all(res, expect)
+
+    def test_single_unary_double_binding(self):
+        """Single unary condition with two possible assignments."""
+        rule = get_rule_tensors(1, 1, ["i0n0sym2"])
+        res = batch_unify(*rule)  # (B, I, N, M)
+        self.assert_all(res[0, 0, 0], tf.constant([0, 1.0, 0, 1.0]))
+        self.assert_all(res[1, 0, 0], tf.constant([0, 0.0, 1.0, 0]))
