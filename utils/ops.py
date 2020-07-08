@@ -2,10 +2,10 @@
 import tensorflow as tf
 
 
-def leftright_cumprod(tensor: tf.Tensor) -> tf.Tensor:
+def leftright_cumprod(tensor: tf.Tensor, axis: int = -1) -> tf.Tensor:
     """Convert sigmoid outputs to categorical distribution."""
     # tensor (..., X)
-    cumprod = tf.math.cumprod(1 - tensor, axis=-1, exclusive=True)  # (..., X)
+    cumprod = tf.math.cumprod(1 - tensor, axis=axis, exclusive=True)  # (..., X)
     return tensor * cumprod  # (..., X)
 
 
