@@ -1,7 +1,6 @@
 """Unit tests for graph based unification."""
 import os
 import re
-import unittest
 from typing import Tuple, List, Dict
 
 import tensorflow as tf
@@ -97,7 +96,7 @@ def get_rule_tensors(
     return inv_unary, inv_binary
 
 
-class TestUnification(unittest.TestCase):
+class TestUnification(tf.test.TestCase):
     """Unit test cases for graph based unification."""
 
     def assert_all(self, got: tf.Tensor, expected: tf.Tensor):
@@ -108,15 +107,15 @@ class TestUnification(unittest.TestCase):
         """Rule with no conditions unify with all nodes."""
         res = batch_unify(*get_rule_tensors(2, 3))  # (B, I, N, M)
         self.assertEqual(res.shape, [2, 2, 3, 4])
-        self.assert_all(res, tf.ones(res.shape))
+        self.assertAllEqual(res, tf.ones(res.shape))
 
     def test_single_unary_rule(self):
         """Rule with a single node and 1 unary condition."""
         rule = get_rule_tensors(1, 1, ["i0n0pos1"])
         res = batch_unify(*rule)  # (B, I, N, M)
         # Only 1 node can unify
-        expect = tf.constant([0, 1.0, 0, 0])
-        self.assert_all(res, expect)
+        expected = tf.constant([0, 1.0, 0, 0])
+        self.assert_all(res, expected)
 
     def test_single_unary_double_binding(self):
         """Single unary condition with two possible assignments."""
