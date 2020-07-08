@@ -21,3 +21,17 @@ class TestOps(tf.test.TestCase):
         self.assertEqual(res.shape, tensor.shape)
         sums = tf.reduce_sum(res, -1)  # (4, 2)
         self.assertAllClose(tf.ones(sums.shape), sums)
+
+    def test_reduce_probsum_vector(self):
+        """Reduce probsum of a single vector return logical or."""
+        tensor = tf.constant([0.5, 0.5])
+        res = ops.reduce_probsum(tensor)
+        self.assertEqual(res, 0.75)
+
+    def test_reduce_probsum_uniform(self):
+        """Probsum of uniform distribution with 1 appended is always 1."""
+        tensor = tf.random.uniform([4, 2, 5])
+        tensor = tf.concat([tensor, tf.ones([4, 2, 1])], -1)  # (4, 2, 6)
+        res = ops.reduce_probsum(tensor)
+        self.assertEqual(res.shape, [4, 2])
+        self.assertAllClose(tf.ones(res.shape), res)
