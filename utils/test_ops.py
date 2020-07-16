@@ -15,7 +15,7 @@ class TestOps(tf.test.TestCase):
 
     def test_leftright_cumprod_sums_to_one(self):
         """Sigmoid convertion produces a valid distribution."""
-        tensor = tf.random.uniform([4, 2, 5])
+        tensor = tf.random.uniform([4, 2, 5], dtype=tf.float32)
         tensor = tf.concat([tensor, tf.ones([4, 2, 1])], -1)  # (4, 2, 6)
         res = ops.leftright_cumprod(tensor)
         self.assertEqual(res.shape, tensor.shape)
@@ -30,7 +30,7 @@ class TestOps(tf.test.TestCase):
 
     def test_reduce_probsum_uniform(self):
         """Probsum of uniform distribution with 1 appended is always 1."""
-        tensor = tf.random.uniform([4, 2, 5])
+        tensor = tf.random.uniform([4, 2, 5], dtype=tf.float32)
         tensor = tf.concat([tensor, tf.ones([4, 2, 1])], -1)  # (4, 2, 6)
         res = ops.reduce_probsum(tensor)
         self.assertEqual(res.shape, [4, 2])
