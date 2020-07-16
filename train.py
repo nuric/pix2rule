@@ -7,7 +7,7 @@ import tensorflow.keras.layers as L
 
 import configlib
 from configlib import config as C
-import data
+import datasets
 
 import unification
 from utils.ops import reduce_probsum, leftright_cumprod
@@ -238,7 +238,7 @@ def train_step(model, batch, lossf, optimiser):
 def train():
     """Training loop."""
     # Load data
-    dsets = data.sequences.load_data()
+    dsets = datasets.sequences.load_data()
     print(dsets)
     # ---------------------------
     # Setup model
