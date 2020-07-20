@@ -31,10 +31,7 @@ parser.add_argument(
     "--invariants", default=1, type=int, help="Number of invariants per task."
 )
 parser.add_argument(
-    "--max_steps",
-    default=4000,
-    type=int,
-    help="Maximum number of batch update steps, -1 for unlimited.",
+    "--max_steps", default=4000, type=int, help="Maximum number of batch update steps.",
 )
 parser.add_argument(
     "--converged_loss",
@@ -161,27 +158,30 @@ def train():
     # ---------------------------
     # Setup model
     model = RuleLearner()
+    model.compile(
+        optimizer="adam",
+        loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False),
+        metrics=[tf.keras.metrics.SparseCategoricalAccuracy(name="acc")],
+    )
     # ---------------------------
-    # Setup metrics
-    metrics = {
-        k: {
-            "loss": tf.keras.metrics.SparseCategoricalCrossentropy(from_logits=False),
-            "acc": tf.keras.metrics.SparseCategoricalAccuracy(),
-        }
-        for k in dsets.keys()
-    }
-    metrics["train"]["total_loss"] = tf.keras.metrics.Mean(dtype=tf.float32)
+    # Setup Callbacks
     # ---------------------------
     # Training loop
     logger.info("Starting training.")
     try:
-        training_loop(model, dsets, metrics)
+        model.fit(
+            dsets["train"],
+            epochs=C["max_steps"] // C["eval_every"],
+            callbacks=None,
+            initial_epoch=0,
+            steps_per_epoch=C["eval_every"],
+        )
     except KeyboardInterrupt:
         logger.warning("Early stopping due to KeyboardInterrupt.")
     # ---
     # Log post training artifacts
     logging.info("Training completed.")
-    artifact_model(model, dsets)
+    # artifact_model(model, dsets)
     logging.info("Artifacts saved.")
 
 
@@ -199,14 +199,15 @@ def main():
     # Setup MLflow
     if parsed_conf["tracking_uri"]:
         mlflow.set_tracking_uri(parsed_conf["tracking_uri"])
+    logger.info("Tracking uri is %s", mlflow.get_tracking_uri())
     experiment_name = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     mlflow.set_experiment(experiment_name)
     logger.info("Created experiment %s", experiment_name)
-    logger.info("Artifact uri is %s", mlflow.get_artifact_uri())
     # ---------------------------
     # Big data machine learning in the cloud
     with mlflow.start_run():
         mlflow.log_params(parsed_conf)
+        logger.info("Artifact uri is %s", mlflow.get_artifact_uri())
         train()
 
 

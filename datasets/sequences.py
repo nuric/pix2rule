@@ -121,7 +121,7 @@ def load_data() -> Dict[str, tf.data.Dataset]:
     # Convert to tf.data.Dataset
     # tfdata = tf.data.Dataset.from_tensor_slices({"input": data[:, :-1], "label": data[:, -1]})
     dsets: Dict[str, tf.data.Dataset] = {
-        k: tf.data.Dataset.from_tensor_slices({"input": v[:, :-1], "label": v[:, -1]})
+        k: tf.data.Dataset.from_tensor_slices(({"input": v[:, :-1]}, v[:, -1]))
         for k, v in data.items()
     }
     # Shuffle and batch

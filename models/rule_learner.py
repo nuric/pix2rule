@@ -1,4 +1,5 @@
 """Differentiable rule learning component."""
+from typing import Dict
 import tensorflow as tf
 
 from configlib import config as C
@@ -6,55 +7,62 @@ import unification
 from utils import ops
 from .seq_feats import SequenceFeatures
 
+invs = [
+    [1, 2, 4, 3, 4],
+    [2, 3, 4, 5, 1],
+    [3, 2, 4, 4, 7],
+    [4, 1, 1, 2, 3],
+    # [4, 2, 1, 2, 3],
+    # [4, 3, 1, 2, 3],
+    # [4, 5, 4, 4, 6],
+    # [4, 5, 6, 2, 6],
+    # [4, 2, 5, 6, 6],
+]
+# labels = [2, 3, 7, 1, 2, 3, 4, 6, 6]
+labels = [2, 3, 7, 1]
 
-class RuleLearner(tf.keras.Model):  # pylint: disable=too-many-ancestors
+
+class RuleLearner(
+    tf.keras.Model
+):  # pylint: disable=too-many-ancestors,too-many-instance-attributes
     """Differentiable rule learning component."""
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.graph_feats = SequenceFeatures()
-        invs = [
-            [1, 2, 4, 3, 4],
-            [2, 3, 4, 5, 1],
-            [3, 2, 4, 4, 7],
-            [4, 1, 1, 2, 3],
-            # [4, 2, 1, 2, 3],
-            # [4, 3, 1, 2, 3],
-            # [4, 5, 4, 4, 6],
-            # [4, 5, 6, 2, 6],
-            # [4, 2, 5, 6, 6],
-        ]
-        # labels = [2, 3, 7, 1, 2, 3, 4, 6, 6]
-        labels = [2, 3, 7, 1]
-        # invs = [[1, 2, 4, 3, 4]]
-        # labels = [2]
         self.inv_inputs = tf.constant(invs, dtype=tf.int32)  # (I, 1L)
         self.inv_labels = tf.constant(labels, dtype=tf.int32)  # (I,)
+        self.syms_eye = tf.eye(1 + C["seq_symbols"])  # (S, S)
+        self.report = dict()
+
+    def build(self, input_shape: Dict[str, tf.TensorShape]):
+        """Build layer weights."""
+        # pylint: disable=attribute-defined-outside-init
         seq_len = 1 + C["seq_length"]  # 1+ for task id
+        ilen = self.inv_inputs.shape[0]  # I
         self.inv_unaryp = self.add_weight(
             name="inv_unaryp",
-            shape=(len(invs), seq_len, seq_len + 1 + C["seq_symbols"]),
+            shape=(ilen, seq_len, seq_len + 1 + C["seq_symbols"]),
             initializer=tf.keras.initializers.RandomNormal(mean=0),
             trainable=True,
         )  # (I, 1L, 1L, P1)
         self.inv_binaryp = self.add_weight(
             name="inv_binaryp",
-            shape=(len(invs), seq_len, seq_len, 1),
+            shape=(ilen, seq_len, seq_len, 1),
             initializer=tf.keras.initializers.RandomNormal(mean=0),
             trainable=True,
         )  # (I, 1L, 1L, P2)
         self.inv_out_map = self.add_weight(
             name="inv_out_map",
-            shape=(len(invs), seq_len + 1),
+            shape=(ilen, seq_len + 1),
             initializer="random_normal",
             trainable=True,
         )  # (I, IL+1)
-        self.syms_eye = tf.eye(1 + C["seq_symbols"])  # (S, S)
 
-    def call(self, inputs: tf.Tensor, training=None, mask=None):
+    def call(self, inputs: Dict[str, tf.Tensor], training=None, mask=None):
         """Perform forward pass of the model."""
         # pylint: disable=too-many-locals
-        # inputs (B, 1L)
+        # inputs {'input': (B, 1L)}
         report = dict()
         # ---------------------------
         # Compute invariant features
@@ -62,9 +70,9 @@ class RuleLearner(tf.keras.Model):  # pylint: disable=too-many-ancestors
             self.inv_inputs
         )  # (I, IL, P1), # (I, IL, IL, P2)
         # Gather unary invariant map
-        inv_unary_map = tf.nn.sigmoid(self.inv_unaryp, -1)  # (I, IL, P1)
+        inv_unary_map = tf.nn.sigmoid(self.inv_unaryp)  # (I, IL, P1)
         # Gather binary invariant map
-        inv_binary_map = tf.nn.sigmoid(self.inv_binaryp, -1)  # (I, IL, IL, P2)
+        inv_binary_map = tf.nn.sigmoid(self.inv_binaryp)  # (I, IL, IL, P2)
         # The examples need to satisfy these conditions
         inv_unary_conds = inv_unary_map * inv_unary_feats  # (I, IL, P1)
         inv_binary_conds = inv_binary_map * inv_binary_feats  # (I, IL, IL, P2)
@@ -78,7 +86,7 @@ class RuleLearner(tf.keras.Model):  # pylint: disable=too-many-ancestors
         # ---------------------------
         # Compute batch features
         batch_unary_feats, batch_binary_feats = self.graph_feats(
-            inputs
+            inputs["input"]
         )  # (B, BL, P1), (B, BL, BL, P2)
         # ---------------------------
         # Unify
@@ -125,4 +133,5 @@ class RuleLearner(tf.keras.Model):  # pylint: disable=too-many-ancestors
         # predictions = inv_preds + inv_select[:, -1:] * null_pred  # (B, S)
         report["predictions"] = predictions
         # ---------------------------
-        return report
+        self.report = report
+        return predictions
