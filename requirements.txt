@@ -5,6 +5,7 @@ tensorflow
 # Tools
 jupyter
 invoke
+tqdm
 # Plotting
 matplotlib
 seaborn

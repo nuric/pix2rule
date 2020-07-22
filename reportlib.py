@@ -15,7 +15,7 @@ def create_report(model: tf.keras.Model, dataset: tf.data.Dataset) -> Dict[str, 
         # Models should populate global report dictionary
         report.update(inputs)
         report["labels"] = labels
-        report["outputs"] = model(inputs)
+        report["outputs"] = model(inputs, training=False)
     report["debug"] = False
     return {k: v.numpy() for k, v in report.items() if k != "debug"}
 
