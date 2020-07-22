@@ -3,6 +3,13 @@ from invoke import task
 
 
 @task
+def clean(cline):
+    """Clean project artifacts such as python cache."""
+    print("Deleting __pycache__ directories.")
+    cline.run("find . -iname '__pycache__' | xargs rm -rf")
+
+
+@task
 def style(cline, write=False):
     """Style and optionally re-write the source files."""
     check_arg = "" if write else "--check"
