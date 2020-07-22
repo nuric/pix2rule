@@ -1,48 +1,34 @@
 """Differentiable rule learning component."""
-from typing import Dict
 import tensorflow as tf
 
 from configlib import config as C
+from reportlib import report
 import unification
 from utils import ops
 from .seq_feats import SequenceFeatures
 
-invs = [
-    [1, 2, 4, 3, 4],
-    [2, 3, 4, 5, 1],
-    [3, 2, 4, 4, 7],
-    [4, 1, 1, 2, 3],
-    # [4, 2, 1, 2, 3],
-    # [4, 3, 1, 2, 3],
-    # [4, 5, 4, 4, 6],
-    # [4, 5, 6, 2, 6],
-    # [4, 2, 5, 6, 6],
-]
-# labels = [2, 3, 7, 1, 2, 3, 4, 6, 6]
-labels = [2, 3, 7, 1]
-
 
 class RuleLearner(
-    tf.keras.Model
-):  # pylint: disable=too-many-ancestors,too-many-instance-attributes
+    tf.keras.layers.Layer
+):  # pylint: disable=too-many-instance-attributes
     """Differentiable rule learning component."""
 
-    def __init__(self, **kwargs):
+    def __init__(self, inv_inputs, inv_labels, num_symbols: int = 8, **kwargs):
         super().__init__(**kwargs)
         self.graph_feats = SequenceFeatures()
-        self.inv_inputs = tf.constant(invs, dtype=tf.int32)  # (I, 1L)
-        self.inv_labels = tf.constant(labels, dtype=tf.int32)  # (I,)
-        self.syms_eye = tf.eye(1 + C["seq_symbols"])  # (S, S)
-        self.report = dict()
+        self.inv_inputs = tf.constant(inv_inputs, dtype=tf.int32)  # (I, 1L)
+        self.inv_labels = tf.constant(inv_labels, dtype=tf.int32)  # (I,)
+        self.num_symbols = num_symbols  # S
+        self.syms_eye = tf.eye(1 + num_symbols)  # (S, S)
 
-    def build(self, input_shape: Dict[str, tf.TensorShape]):
+    def build(self, input_shape: tf.TensorShape):
         """Build layer weights."""
         # pylint: disable=attribute-defined-outside-init
-        seq_len = 1 + C["seq_length"]  # 1+ for task id
+        seq_len = input_shape[-1]  # 1+ for task id
         ilen = self.inv_inputs.shape[0]  # I
         self.inv_unaryp = self.add_weight(
             name="inv_unaryp",
-            shape=(ilen, seq_len, seq_len + 1 + C["seq_symbols"]),
+            shape=(ilen, seq_len, seq_len + 1 + self.num_symbols),
             initializer=tf.keras.initializers.RandomNormal(mean=0),
             trainable=True,
         )  # (I, 1L, 1L, P1)
@@ -59,11 +45,10 @@ class RuleLearner(
             trainable=True,
         )  # (I, IL+1)
 
-    def call(self, inputs: Dict[str, tf.Tensor], training=None, mask=None):
+    def call(self, inputs: tf.Tensor, **kwargs):
         """Perform forward pass of the model."""
         # pylint: disable=too-many-locals
-        # inputs {'input': (B, 1L)}
-        report = dict()
+        # inputs (B, 1L)
         # ---------------------------
         # Compute invariant features
         inv_unary_feats, inv_binary_feats = self.graph_feats(
@@ -86,7 +71,7 @@ class RuleLearner(
         # ---------------------------
         # Compute batch features
         batch_unary_feats, batch_binary_feats = self.graph_feats(
-            inputs["input"]
+            inputs
         )  # (B, BL, P1), (B, BL, BL, P2)
         # ---------------------------
         # Unify
@@ -133,5 +118,40 @@ class RuleLearner(
         # predictions = inv_preds + inv_select[:, -1:] * null_pred  # (B, S)
         report["predictions"] = predictions
         # ---------------------------
-        self.report = report
         return predictions
+
+    def get_config(self):
+        """Serialisable configuration dictionary."""
+        config = super(RuleLearner, self).get_config()
+        config.update(
+            {
+                "inv_inputs": self.inv_inputs.numpy().tolist(),
+                "inv_labels": self.inv_labels.numpy().tolist(),
+                "num_symbols": self.num_symbols,
+            }
+        )
+        return config
+
+
+invs = [
+    [1, 2, 4, 3, 4],
+    [2, 3, 4, 5, 1],
+    [3, 2, 4, 4, 7],
+    [4, 1, 1, 2, 3],
+    # [4, 2, 1, 2, 3],
+    # [4, 3, 1, 2, 3],
+    # [4, 5, 4, 4, 6],
+    # [4, 5, 6, 2, 6],
+    # [4, 2, 5, 6, 6],
+]
+# labels = [2, 3, 7, 1, 2, 3, 4, 6, 6]
+labels = [2, 3, 7, 1]
+
+
+def build_model() -> tf.keras.Model:
+    """Build the trainable model."""
+    seq_input = tf.keras.Input(
+        shape=(1 + C["seq_length"],), name="input", dtype="int32"
+    )
+    predictions = RuleLearner(invs, labels, C["seq_symbols"])(seq_input)
+    return tf.keras.Model(inputs=seq_input, outputs=predictions, name="rule_learner")

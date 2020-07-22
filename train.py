@@ -2,7 +2,6 @@
 import os
 import logging
 import datetime
-import time
 from pathlib import Path
 
 import numpy as np
@@ -11,8 +10,9 @@ import mlflow
 
 import configlib
 from configlib import config as C
+from reportlib import create_report
 import datasets
-from models.rule_learner import RuleLearner
+import models.rule_learner
 import utils.callbacks
 
 # Calm down tensorflow logging
@@ -58,7 +58,11 @@ def train():
     logger.info("Loaded datasets: %s", str(dsets))
     # ---------------------------
     # Setup model
-    model = RuleLearner()
+    model = models.rule_learner.build_model()
+    # Debug run
+    if C["debug"]:
+        report = create_report(model, dsets["train"])
+        print("Debug report keys:", report.keys())
     model.compile(
         optimizer="adam",
         loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False),
@@ -84,7 +88,7 @@ def train():
         callbacks=callbacks,
         initial_epoch=0,
         steps_per_epoch=C["eval_every"],
-        verbose=2,
+        verbose=1,
     )
     # ---
     # Log post training artifacts
@@ -95,7 +99,7 @@ def main():
     """Main entry point function."""
     # ---------------------------
     # Store in global config object inside configlib
-    parsed_conf = configlib.parse()
+    configlib.parse()
     print("Running with configuration:")
     configlib.print_config()
     # ---------------------------
