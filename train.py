@@ -129,7 +129,7 @@ def main():
         logger.info("Artifact uri is %s", mlflow.get_artifact_uri())
         train()
     except KeyboardInterrupt:
-        mlflow.end_run(status="INTERRUPTED")
+        mlflow.end_run(status="KILLED")
     else:
         mlflow.end_run()
 

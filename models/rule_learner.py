@@ -90,7 +90,13 @@ class RuleLearner(
         # node_select = tf.nn.softmax(
         # tf.math.log(node_uni / (1 - node_uni)), -1
         # )  # (B, I, IL, BL)
-        node_select = tf.nn.softmax(uni_sets * 10, -1)  # (B, I, IL, BL)
+        alpha = 0.999  # softmax target scale on one-hot vector
+        sm_scale = tf.math.log(
+            alpha
+            * tf.cast((tf.shape(self.inv_inputs)[0] - 1), tf.float32)
+            / (1 - alpha)
+        )  # k = log(alpha * (n-1) / (1-alpha)) derived from softmax(kx)
+        node_select = tf.nn.softmax(uni_sets * sm_scale, -1)  # (B, I, IL, BL)
         # (B, I, IL, BL) x (B, BL, S) -> (B, I, IL, S)
         edge_outs = tf.einsum("bilk,bku->bilu", node_select, batch_unary_feats[..., 5:])
         # ---------------------------
@@ -109,7 +115,7 @@ class RuleLearner(
         # inv_uni = tf.concat([inv_uni, tf.ones((inv_uni.shape[0], 1))], -1)  # (B, I+1)
         # inv_select = leftright_cumprod(inv_uni)  # (B, I+1)
         # inv_select = tf.nn.softmax(tf.math.log(inv_uni / (1 - inv_uni)))  # (B, I)
-        inv_select = tf.nn.softmax(inv_uni * 10)  # (B, I)
+        inv_select = tf.nn.softmax(inv_uni * sm_scale)  # (B, I)
         report["inv_select"] = inv_select
         # ---------------------------
         # (B, I) x (B, I, S) -> (B, S)
