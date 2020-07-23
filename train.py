@@ -17,6 +17,7 @@ import utils.callbacks
 
 # Calm down tensorflow logging
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+tf.get_logger().setLevel(logging.ERROR)
 # Setup logging
 logging.getLogger().setLevel(logging.INFO)
 logger = logging.getLogger(__name__)
