@@ -3,6 +3,7 @@ import os
 import logging
 import datetime
 from pathlib import Path
+import json
 
 import numpy as np
 import tensorflow as tf
@@ -89,7 +90,7 @@ def train():
         callbacks=callbacks,
         initial_epoch=0,
         steps_per_epoch=C["eval_every"],
-        verbose=1,
+        verbose=0,
     )
     # ---
     # Log post training artifacts
@@ -126,6 +127,7 @@ def main():
         logger.info("Experiment id: %s", mlflow_run.info.experiment_id)
         logger.info("Run id: %s", mlflow_run.info.run_id)
         mlflow.log_params(C)
+        mlflow.set_tag("config_hash", hash(json.dumps(C, sort_keys=True)))
         logger.info("Artifact uri is %s", mlflow.get_artifact_uri())
         train()
     except KeyboardInterrupt:

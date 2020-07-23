@@ -2,6 +2,7 @@
 from typing import List, Dict
 import shutil
 from pathlib import Path
+import time
 
 import numpy as np
 import tensorflow as tf
@@ -50,6 +51,7 @@ class Evaluator(tf.keras.callbacks.Callback):
     def __init__(self, datasets: Dict[str, tf.data.Dataset]):
         super(Evaluator, self).__init__()
         self.datasets = datasets
+        self.last_time = time.time()
 
     def on_epoch_end(self, epoch: int, logs: Dict[str, float] = None):
         """Evaluate on every dataset and report metrics back."""
@@ -62,8 +64,14 @@ class Evaluator(tf.keras.callbacks.Callback):
             test_report = {dname + "_" + k: v for k, v in test_report.items()}
             report.update(test_report)
         # ---------------------------
+        report["time"] = time.time() - self.last_time
+        self.last_time = time.time()
         # Save and parint report
-        print(" ".join([k + " " + "{:.3f}".format(v) for k, v in report.items()]))
+        print(
+            "epoch",
+            epoch,
+            " ".join([k + " " + "{:.3f}".format(v) for k, v in report.items()]),
+        )
         mlflow.log_metrics(report, step=epoch)
 
 
