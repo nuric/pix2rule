@@ -96,6 +96,10 @@ def train():
     # ---
     # Log post training artifacts
     logging.info("Training completed.")
+    import ipdb
+
+    ipdb.set_trace()
+    print("HERE")
 
 
 def dict_hash(dictionary: Dict[str, Any]) -> str:
@@ -152,16 +156,15 @@ def main():
     C["artifact_dir"] = str(art_dir)
     logger.info("Local artifact dir is %s", str(art_dir))
     logger.info("Artifact uri is %s", mlflow.get_artifact_uri())
-    # ---
     # ---------------------------
     # Big data machine learning in the cloud
     try:
         train()
     except KeyboardInterrupt:
         logger.warning("Pausing training on keyboard interrupt.")
-    except Exception as e:
-        logger.error("Terminating training: %s", e)
-        mlflow.end_run(status="KILLED")
+    # except Exception as e:
+    # logger.error("Terminating training: %s", e)
+    # mlflow.end_run(status="KILLED")
     else:
         mlflow.end_run()
 
