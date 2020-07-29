@@ -23,7 +23,7 @@ class SequenceFeatures(L.Layer):
         # inputs (batch_size B, length N)
         # ---------------------------
         # Compute unary predicates
-        neye = tf.eye(tf.shape(inputs)[1])  # (N, N)
+        neye = tf.eye(inputs.shape[1])  # (N, N) N cannot be None
         unary_p_pos = tf.repeat(neye[None], tf.shape(inputs)[0], axis=0)  # (B, N, N)
         unary_p_sym = self.embedding(inputs)  # (B, N, S)
         unary_ps = tf.concat([unary_p_pos, unary_p_sym], -1)  # (B, N, P1)

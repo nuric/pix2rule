@@ -15,7 +15,7 @@ import configlib
 from configlib import config as C
 from reportlib import create_report
 import datasets
-import models.rule_learner
+import models.seq_model
 import utils.callbacks
 import utils.exceptions
 
@@ -62,7 +62,7 @@ def train():
     logger.info("Loaded datasets: %s", str(dsets))
     # ---------------------------
     # Setup model
-    model = models.rule_learner.build_model()
+    model = models.seq_model.build_model()
     # Debug run
     if C["debug"]:
         report = create_report(model, dsets["train"])
