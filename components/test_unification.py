@@ -1,14 +1,11 @@
 """Unit tests for graph based unification."""
-import os
 import re
+import logging
 from typing import Tuple, List, Dict
 
 import tensorflow as tf
 
-from unification import unify
-
-# Calm down tensorflow logging
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+from .unification import unify
 
 
 def create_batch() -> Tuple[tf.Tensor, tf.Tensor]:
