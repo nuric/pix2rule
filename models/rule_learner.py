@@ -4,7 +4,7 @@ import tensorflow as tf
 
 from reportlib import report
 from components import unification
-from utils import ops
+from components import ops
 
 
 class RuleLearner(

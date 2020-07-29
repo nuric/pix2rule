@@ -1,7 +1,7 @@
 """Subgraph isomorphism based unification."""
 import tensorflow as tf
 
-from utils.ops import reduce_probsum
+from .ops import reduce_probsum
 
 
 def unify(
