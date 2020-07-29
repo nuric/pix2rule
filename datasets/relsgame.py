@@ -1,7 +1,7 @@
 """Relations game dataset from PrediNet paper.
 
 Source of data: https://arxiv.org/pdf/1905.10307.pdf"""
-from typing import Dict, List, Tuple
+from typing import Dict, List
 import logging
 from pathlib import Path
 
@@ -49,11 +49,12 @@ def get_file(fname: str) -> str:
     assert fname.endswith(".npz"), "Can only download npz files for relsgame."
     url = "https://storage.googleapis.com/storage/v1/b/relations-game-datasets/o/{}?alt=media"
     try:
-        return tf.keras.utils.get_file(
+        fpath = tf.keras.utils.get_file(
             fname, url.format(fname), cache_subdir="relsgame", cache_dir=C["data_dir"]
         )
-    except Exception as e:
-        logger.warning("Could not download %s: %s", fname, e)
+        return str(fpath)
+    except Exception as exception:  # pylint: disable=broad-except
+        logger.warning("Could not download %s: %s", fname, exception)
         return ""
 
 
@@ -141,9 +142,9 @@ def load_data() -> Dict[str, tf.data.Dataset]:
     # ---------------------------
     # Load the compressed data file
     dnpz = np.load(str(cpath))  # {'train_images': .., 'test_stripes_images': ...
-    dsetnames = set(
-        ["_".join(k.split("_")[:2]) for k in dnpz.files if k.startswith("test")]
-    )  # [test_stripes, ...]
+    dsetnames = {
+        "_".join(k.split("_")[:2]) for k in dnpz.files if k.startswith("test")
+    }  # [test_stripes, ...]
     dsetnames.add("train")
     # ---------------------------
     # Curate datasets
