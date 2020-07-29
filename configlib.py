@@ -18,13 +18,16 @@ def add_parser(title: str, description: str = ""):
 
 
 def parse(save_fname: str = "") -> Dict[str, Any]:
-    """Parse given arguments."""
+    """Clean configuration and parse given arguments."""
+    # Start from clean configuration
+    config.clear()
     config.update(vars(parser.parse_args()))
     logging.info("Parsed %i arguments.", len(config))
     # Save passed arguments
     if save_fname:
         with open(save_fname, "w") as fout:
             fout.write("\n".join(sys.argv[1:]))
+        logging.info("Saving arguments to %s.", save_fname)
     return config
 
 
