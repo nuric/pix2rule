@@ -3,7 +3,7 @@ import tensorflow as tf
 
 from configlib import config as C
 from reportlib import report
-from .seq_feats import SequenceFeatures
+from components.sequence_features import SequenceFeatures
 from .rule_learner import RuleLearner
 
 

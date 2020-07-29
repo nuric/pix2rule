@@ -8,7 +8,6 @@ class SequenceFeatures(L.Layer):
 
     def __init__(self, num_symbols: int = 8, **kwargs):
         super(SequenceFeatures, self).__init__(**kwargs)
-        # self.embedding = L.Embedding(C["seq_symbols"], C["embed"], mask_zero=True)
         self.num_symbols = num_symbols
         self.embedding = L.Embedding(
             1 + num_symbols,
