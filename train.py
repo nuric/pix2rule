@@ -74,7 +74,9 @@ def train():
     )
     # ---------------------------
     # Setup Callbacks
-    inv_selector = utils.callbacks.InvariantSelector(dsets["train"])
+    inv_selector = utils.callbacks.InvariantSelector(
+        dsets["train"], max_invariants=C["max_invariants"]
+    )
     callbacks = [
         inv_selector,
         tf.keras.callbacks.ModelCheckpoint(
@@ -170,9 +172,6 @@ def main():
         train()
     except KeyboardInterrupt:
         logger.warning("Pausing training on keyboard interrupt.")
-    # except Exception as e:
-    # logger.error("Terminating training: %s", e)
-    # mlflow.end_run(status="KILLED")
     else:
         mlflow.end_run()
 

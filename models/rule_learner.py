@@ -21,10 +21,10 @@ class RuleLearner(
         self.max_invs = max_invs  # upper bound on I
         self.syms_eye = tf.eye(1 + num_symbols)  # (S, S)
 
-    def build(self, input_shapes: Dict[str, tf.TensorShape]):
+    def build(self, input_shape: Dict[str, tf.TensorShape]):
         """Build layer weights."""
         # pylint: disable=attribute-defined-outside-init
-        seq_len = input_shapes["inv_input"][1]  # 1+ for task id
+        seq_len = input_shape["inv_input"][1]  # 1+ for task id
         ilen = self.max_invs  # upper bound on I
         self.inv_unaryp = self.add_weight(
             name="inv_unaryp",

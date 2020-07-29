@@ -15,15 +15,22 @@ from reportlib import create_report
 from . import exceptions
 
 
-class InvariantSelector(tf.keras.callbacks.Callback):
+class InvariantSelector(
+    tf.keras.callbacks.Callback
+):  # pylint: disable=too-many-instance-attributes
     """Selects new invariants and updates model invariants."""
 
-    def __init__(self, dataset: tf.data.Dataset):
+    def __init__(
+        self, dataset: tf.data.Dataset, max_invariants: int = 4, patience: int = 10
+    ):
         super(InvariantSelector, self).__init__()
         self.dataset = dataset
+        # Start with null invariant to get a forward pass from model
         self.inv_inputs = np.zeros((1, 5), dtype=np.int32)
         self.inv_labels = np.zeros((1,), dtype=np.int32)
-        self.patience = 7
+        self.patience = patience
+        self.max_invariants = max_invariants
+        # Instance variables
         self.wait = 0
         self.best = np.inf
         self.last_epoch = 0
@@ -70,7 +77,7 @@ class InvariantSelector(tf.keras.callbacks.Callback):
             # We have stagnated
             self.wait = 0
             report = create_report(self.model, self.create_dataset())
-            if len(self.inv_inputs) < C["max_invariants"]:
+            if len(self.inv_inputs) < self.max_invariants:
                 idx = np.argmin(np.sum(report["inv_uni"], -1), 0)  # ()
                 # print("Would have added:", report["input"][idx])
                 # losses = tf.keras.losses.sparse_categorical_crossentropy(
