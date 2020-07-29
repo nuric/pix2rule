@@ -17,6 +17,7 @@ from reportlib import create_report
 import datasets
 import models.rule_learner
 import utils.callbacks
+import utils.exceptions
 
 # Calm down tensorflow logging
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
@@ -34,14 +35,14 @@ np.set_printoptions(suppress=True, precision=5, linewidth=180)
 parser = configlib.add_parser("UMLP options.")
 parser.add_argument("--experiment_name", help="Optional experiment name.")
 parser.add_argument(
-    "--invariants", default=1, type=int, help="Number of invariants per task."
+    "--max_invariants", default=4, type=int, help="Number of maximum invariants."
 )
 parser.add_argument(
     "--max_steps", default=4000, type=int, help="Maximum number of batch update steps.",
 )
 parser.add_argument(
     "--converged_loss",
-    default=0.001,
+    default=0.01,
     type=float,
     help="Loss below which convergence is achieved.",
 )
@@ -73,33 +74,40 @@ def train():
     )
     # ---------------------------
     # Setup Callbacks
+    inv_selector = utils.callbacks.InvariantSelector(dsets["train"])
     callbacks = [
+        inv_selector,
         tf.keras.callbacks.ModelCheckpoint(
             C["artifact_dir"] + "/models/latest_model", monitor="loss"
         ),
         utils.callbacks.EarlyStopAtConvergence(C["converged_loss"]),
         utils.callbacks.TerminateOnNaN(),
-        utils.callbacks.Evaluator(dsets),
-        utils.callbacks.ArtifactSaver(dsets),
+        utils.callbacks.Evaluator(dsets, inv_selector.create_dataset),
+        utils.callbacks.ArtifactSaver(dsets, inv_selector.create_dataset),
     ]
     # ---------------------------
     # Training loop
     logger.info("Starting training.")
-    model.fit(
-        dsets["train"],
-        epochs=C["max_steps"] // C["eval_every"],
-        callbacks=callbacks,
-        initial_epoch=0,
-        steps_per_epoch=C["eval_every"],
-        verbose=0,
-    )
+    retry = True
+    while retry:
+        try:
+            model.fit(
+                inv_selector.create_dataset(),
+                epochs=C["max_steps"] // C["eval_every"],
+                callbacks=callbacks,
+                initial_epoch=inv_selector.last_epoch,
+                steps_per_epoch=C["eval_every"],
+                verbose=0,
+            )
+        except utils.exceptions.NewInvariantException:
+            retry = True
+            logger.info("Resuming training with new invariants.")
+            print("Invs:", inv_selector.inv_inputs, sep="\n")
+        else:
+            retry = False
     # ---
     # Log post training artifacts
     logging.info("Training completed.")
-    import ipdb
-
-    ipdb.set_trace()
-    print("HERE")
 
 
 def dict_hash(dictionary: Dict[str, Any]) -> str:

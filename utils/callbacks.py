@@ -1,5 +1,5 @@
 """Custom training utility callbacks."""
-from typing import List, Dict
+from typing import List, Dict, Callable
 import shutil
 from pathlib import Path
 import time
@@ -12,6 +12,79 @@ import mlflow.keras
 import models
 from configlib import config as C
 from reportlib import create_report
+from . import exceptions
+
+
+class InvariantSelector(tf.keras.callbacks.Callback):
+    """Selects new invariants and updates model invariants."""
+
+    def __init__(self, dataset: tf.data.Dataset):
+        super(InvariantSelector, self).__init__()
+        self.dataset = dataset
+        self.inv_inputs = np.zeros((1, 5), dtype=np.int32)
+        self.inv_labels = np.zeros((1,), dtype=np.int32)
+        self.patience = 7
+        self.wait = 0
+        self.best = np.inf
+        self.last_epoch = 0
+
+    def create_dataset(self, origin: tf.data.Dataset = None) -> tf.data.Dataset:
+        """Create new dataset with invariant as inputs."""
+
+        def add_invariants(inputs: Dict[str, tf.Tensor], label: tf.Tensor):
+            """Add invariants to inputs tensor dictionary."""
+            inputs["inv_input"] = tf.constant(self.inv_inputs)
+            inputs["inv_label"] = tf.constant(self.inv_labels)
+            return inputs, label
+
+        return (
+            origin.map(add_invariants)
+            if origin is not None
+            else self.dataset.map(add_invariants)
+        )
+
+    def on_train_begin(self, logs: Dict[str, float] = None):
+        """Select invariants at the beginning of training."""
+        # Get a random batch example
+        if np.all(self.inv_inputs != 0):
+            return
+        report = create_report(self.model, self.create_dataset())
+        ridxs = np.random.choice(len(report["input"]), size=1, replace=False)
+        self.inv_inputs = report["input"][ridxs]
+        self.inv_labels = report["labels"][ridxs]
+        print("Starting with invariant inputs:", self.inv_inputs, self.inv_labels)
+        # Signal to update training dataset
+        raise exceptions.NewInvariantException()
+
+    def on_epoch_end(self, epoch, logs: Dict[str, float] = None):
+        """Check and add one more invariant."""
+        # check for stagnation
+        self.wait += 1
+        logs = logs or {}
+        current = logs.get("loss", self.best)
+        self.last_epoch = epoch
+        if (self.best - current) > 0.1:
+            self.wait = 0
+            self.best = current
+        if self.wait >= self.patience:
+            # We have stagnated
+            self.wait = 0
+            report = create_report(self.model, self.create_dataset())
+            if len(self.inv_inputs) < C["max_invariants"]:
+                idx = np.argmin(np.sum(report["inv_uni"], -1), 0)  # ()
+                # print("Would have added:", report["input"][idx])
+                # losses = tf.keras.losses.sparse_categorical_crossentropy(
+                # report["labels"], report["predictions"]
+                # ).numpy()
+                # idx = np.argmin(losses, 0)  # ()
+                print("Adding new invariant:", report["input"][idx])
+                self.inv_inputs = np.concatenate(
+                    [self.inv_inputs, report["input"][None, idx]]
+                )
+                self.inv_labels = np.concatenate(
+                    [self.inv_labels, report["labels"][None, idx]]
+                )
+                raise exceptions.NewInvariantException()
 
 
 class EarlyStopAtConvergence(tf.keras.callbacks.Callback):
@@ -48,10 +121,15 @@ class TerminateOnNaN(tf.keras.callbacks.Callback):
 class Evaluator(tf.keras.callbacks.Callback):
     """Evaluate model with multiple test datasets."""
 
-    def __init__(self, datasets: Dict[str, tf.data.Dataset]):
+    def __init__(
+        self,
+        datasets: Dict[str, tf.data.Dataset],
+        dset_wrapper: Callable[[tf.data.Dataset], tf.data.Dataset] = None,
+    ):
         super(Evaluator, self).__init__()
         self.datasets = datasets
         self.last_time = time.time()
+        self.dset_wrapper = dset_wrapper or (lambda x: x)
 
     def on_epoch_end(self, epoch: int, logs: Dict[str, float] = None):
         """Evaluate on every dataset and report metrics back."""
@@ -60,7 +138,9 @@ class Evaluator(tf.keras.callbacks.Callback):
         for dname, dset in self.datasets.items():
             if not dname.startswith("test"):
                 continue
-            test_report: Dict[str, float] = self.model.evaluate(dset, return_dict=True)
+            test_report: Dict[str, float] = self.model.evaluate(
+                self.dset_wrapper(dset), return_dict=True
+            )
             test_report = {dname + "_" + k: v for k, v in test_report.items()}
             report.update(test_report)
         # ---------------------------
@@ -78,9 +158,14 @@ class Evaluator(tf.keras.callbacks.Callback):
 class ArtifactSaver(tf.keras.callbacks.Callback):
     """Save model artifacts after training is completed."""
 
-    def __init__(self, datasets: Dict[str, tf.data.Dataset]):
+    def __init__(
+        self,
+        datasets: Dict[str, tf.data.Dataset],
+        dset_wrapper: Callable[[tf.data.Dataset], tf.data.Dataset] = None,
+    ):
         super(ArtifactSaver, self).__init__()
         self.datasets = datasets
+        self.dset_wrapper = dset_wrapper or (lambda x: x)
 
     def on_train_end(self, logs: Dict[str, float] = None):
         """Save generated model artifacts."""
@@ -95,7 +180,7 @@ class ArtifactSaver(tf.keras.callbacks.Callback):
         # ---------------------------
         # Save model report artifacts
         for dname, dset in self.datasets.items():
-            report = create_report(self.model, dset)
+            report = create_report(self.model, self.dset_wrapper(dset))
             fname = str(art_dir / (dname + "_report.npz"))
             np.savez_compressed(fname, **report)
             print("Saving model report artifact:", fname)

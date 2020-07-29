@@ -1,4 +1,5 @@
 """Differentiable rule learning component."""
+from typing import Dict
 import tensorflow as tf
 
 from configlib import config as C
@@ -13,21 +14,17 @@ class RuleLearner(
 ):  # pylint: disable=too-many-instance-attributes
     """Differentiable rule learning component."""
 
-    def __init__(
-        self, inv_inputs, inv_labels, max_invs: int = 4, num_symbols: int = 8, **kwargs
-    ):
+    def __init__(self, max_invs: int = 4, num_symbols: int = 8, **kwargs):
         super().__init__(**kwargs)
         self.graph_feats = SequenceFeatures()
-        self.inv_inputs = tf.constant(inv_inputs, dtype=tf.int32)  # (I, 1L)
-        self.inv_labels = tf.constant(inv_labels, dtype=tf.int32)  # (I,)
         self.num_symbols = num_symbols  # S
         self.max_invs = max_invs  # upper bound on I
         self.syms_eye = tf.eye(1 + num_symbols)  # (S, S)
 
-    def build(self, input_shape: tf.TensorShape):
+    def build(self, input_shapes: Dict[str, tf.TensorShape]):
         """Build layer weights."""
         # pylint: disable=attribute-defined-outside-init
-        seq_len = input_shape[-1]  # 1+ for task id
+        seq_len = input_shapes["inv_input"][1]  # 1+ for task id
         ilen = self.max_invs  # upper bound on I
         self.inv_unaryp = self.add_weight(
             name="inv_unaryp",
@@ -43,20 +40,21 @@ class RuleLearner(
         )  # (I, 1L, 1L, P2)
         self.inv_out_map = self.add_weight(
             name="inv_out_map",
-            shape=(ilen, seq_len + 1),
+            shape=(ilen, seq_len + 1),  # +1 for constant output
             initializer="random_normal",
             trainable=True,
         )  # (I, IL+1)
 
-    def call(self, inputs: tf.Tensor, **kwargs):
+    def call(self, inputs: Dict[str, tf.Tensor], **kwargs):
         """Perform forward pass of the model."""
         # pylint: disable=too-many-locals
-        # inputs (B, 1L)
+        # inputs {'seq_input': (B, BL), 'inv_input': (I, IL), 'inv_label': (I,)}
         # ---------------------------
-        num_invs = tf.shape(self.inv_inputs)[0]  # I
+        num_invs = tf.shape(inputs["inv_input"])[0]  # I
+        report["inv_input"] = inputs["inv_input"]
         # Compute invariant features
         inv_unary_feats, inv_binary_feats = self.graph_feats(
-            self.inv_inputs
+            report["inv_input"]
         )  # (I, IL, P1), # (I, IL, IL, P2)
         # Gather unary invariant map
         inv_unary_map = tf.nn.sigmoid(self.inv_unaryp[:num_invs])  # (I, IL, P1)
@@ -75,7 +73,7 @@ class RuleLearner(
         # ---------------------------
         # Compute batch features
         batch_unary_feats, batch_binary_feats = self.graph_feats(
-            inputs
+            inputs["seq_input"]
         )  # (B, BL, P1), (B, BL, BL, P2)
         # ---------------------------
         # Unify
@@ -109,12 +107,14 @@ class RuleLearner(
         report["inv_out_map"] = inv_out_map
         # (I, IL) x (B, I, IL, S) -> (B, I, S)
         inv_nodes_out = tf.einsum("il,bilp->bip", inv_out_map[:, :-1], edge_outs)
-        inv_const_out = tf.gather(self.syms_eye, self.inv_labels, axis=0)  # (I, S)
+        report["inv_label"] = inputs["inv_label"]
+        inv_const_out = tf.gather(self.syms_eye, inputs["inv_label"], axis=0)  # (I, S)
         inv_sym_out = inv_nodes_out + inv_out_map[:, -1:] * inv_const_out  # (B, I, S)
         report["inv_sym_out"] = inv_sym_out
         # ---------------------------
         # Find which invariants unify
         inv_uni = tf.reduce_prod(ops.reduce_probsum(uni_sets, -1), -1)  # (B, I)
+        report["inv_uni"] = inv_uni
         # inv_uni = tf.concat([inv_uni, tf.ones((inv_uni.shape[0], 1))], -1)  # (B, I+1)
         # inv_select = leftright_cumprod(inv_uni)  # (B, I+1)
         # inv_select = tf.nn.softmax(tf.math.log(inv_uni / (1 - inv_uni)))  # (B, I)
@@ -133,21 +133,16 @@ class RuleLearner(
         """Serialisable configuration dictionary."""
         config = super(RuleLearner, self).get_config()
         config.update(
-            {
-                "inv_inputs": self.inv_inputs.numpy().tolist(),
-                "inv_labels": self.inv_labels.numpy().tolist(),
-                "num_symbols": self.num_symbols,
-                "max_invs": self.max_invs,
-            }
+            {"num_symbols": self.num_symbols, "max_invs": self.max_invs,}
         )
         return config
 
 
 invs = [
-    [1, 2, 4, 3, 4],
+    # [1, 2, 4, 3, 4],
     [2, 3, 4, 5, 1],
-    [3, 2, 4, 4, 7],
-    [4, 1, 1, 2, 3],
+    # [3, 2, 4, 4, 7],
+    # [4, 1, 1, 2, 3],
     # [4, 2, 1, 2, 3],
     # [4, 3, 1, 2, 3],
     # [4, 5, 4, 4, 6],
@@ -155,14 +150,24 @@ invs = [
     # [4, 2, 5, 6, 6],
 ]
 # labels = [2, 3, 7, 1, 2, 3, 4, 6, 6]
-labels = [2, 3, 7, 1]
-# labels = [3]
+# labels = [2, 3, 7, 1]
+labels = [3]
 
 
 def build_model() -> tf.keras.Model:
     """Build the trainable model."""
-    seq_input = tf.keras.Input(
-        shape=(1 + C["seq_length"],), name="input", dtype="int32"
+    seq_len = 1 + C["seq_length"]  # 1+ for task_id
+    seq_input = tf.keras.Input(shape=(seq_len,), name="input", dtype="int32")  # (B, BL)
+    inv_input = tf.keras.Input(
+        shape=(seq_len,), name="inv_input", dtype="int32"
+    )  # (I, IL)
+    inv_label = tf.keras.Input(shape=(), name="inv_label", dtype="int32")  # (I,)
+    # predictions = RuleLearner(invs, labels, C["seq_symbols"])(seq_input)
+    predictions = RuleLearner(C["seq_symbols"])(
+        {"seq_input": seq_input, "inv_input": inv_input, "inv_label": inv_label}
     )
-    predictions = RuleLearner(invs, labels, C["seq_symbols"])(seq_input)
-    return tf.keras.Model(inputs=seq_input, outputs=predictions, name="rule_learner")
+    return tf.keras.Model(
+        inputs=[seq_input, inv_input, inv_label],
+        outputs=predictions,
+        name="rule_learner",
+    )
