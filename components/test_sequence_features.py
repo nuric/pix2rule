@@ -1,6 +1,4 @@
 """Unit tests for sequence features."""
-import logging
-
 import tensorflow as tf
 
 from .sequence_features import SequenceFeatures

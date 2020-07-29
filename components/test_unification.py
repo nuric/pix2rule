@@ -1,6 +1,5 @@
 """Unit tests for graph based unification."""
 import re
-import logging
 from typing import Tuple, List, Dict
 
 import tensorflow as tf
