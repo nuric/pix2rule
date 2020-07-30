@@ -1,10 +1,7 @@
 """Unification MLP."""
-from typing import Dict, Any
 import logging
 import datetime
 from pathlib import Path
-import json
-import hashlib
 
 import numpy as np
 import tensorflow as tf
@@ -109,21 +106,11 @@ def train():
     logging.info("Training completed.")
 
 
-def dict_hash(dictionary: Dict[str, Any]) -> str:
-    """MD5 hash of a dictionary."""
-    dhash = hashlib.md5()
-    # We need to sort arguments so {'a': 1, 'b': 2} is
-    # the same as {'b': 2, 'a': 1}
-    encoded = json.dumps(dictionary, sort_keys=True).encode()
-    dhash.update(encoded)
-    return dhash.hexdigest()
-
-
 def main():
     """Main entry point function."""
     # ---------------------------
     # Store in global config object inside configlib
-    configlib.parse()
+    config_hash = configlib.parse()
     print("Running with configuration:")
     configlib.print_config()
     # ---------------------------
@@ -140,7 +127,6 @@ def main():
     logger.info("Set experiment %s", C["experiment_name"])
     # ---
     # Check for past run, are we resuming?
-    config_hash = dict_hash(C)
     logger.info("Configuration hash is %s", config_hash)
     run_id = None
     past_runs = mlflow.search_runs(
