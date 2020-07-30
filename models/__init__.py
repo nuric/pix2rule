@@ -7,7 +7,7 @@ import configlib
 from configlib import config as C
 
 from . import rule_learner
-from . import sequence_model
+from . import sequences_model
 
 # ---------------------------
 # We expose a list of custom layers for saving and loading models
@@ -20,7 +20,7 @@ custom_layers.update(components.custom_layers)
 # Model registry
 # registry = {m.__name__.split(".")[-1]: m.build_model for m in [sequence_model]}
 # type checker seems to not recognise what is going above
-registry = {"sequence_model": sequence_model.build_model}
+registry = {"sequences_model": sequences_model.build_model}
 # ---------------------------
 
 # ---------------------------
@@ -28,7 +28,7 @@ registry = {"sequence_model": sequence_model.build_model}
 parser = configlib.add_parser("Global model options.")
 parser.add_argument(
     "--model_name",
-    default="sequence_model",
+    default="sequences_model",
     choices=registry.keys(),
     help="Model name to train / evaluate.",
 )
