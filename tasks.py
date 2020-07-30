@@ -30,7 +30,7 @@ def lint(cline):
 def test(cline):
     """Discover and run test cases."""
     print("Running unit tests.")
-    cline.run("python3 -m unittest")
+    cline.run("TF_CPP_MIN_LOG_LEVEL=3 python3 -m unittest")
 
 
 @task(style, lint, test)
