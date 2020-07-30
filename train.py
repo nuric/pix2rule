@@ -55,7 +55,7 @@ parser.add_argument("--tracking_uri", help="MLflow tracking URI.")
 def train():
     """Training loop."""
     # Load data
-    dsets = datasets.sequences.load_data()
+    dsets = datasets.load_data()
     logger.info("Loaded datasets: %s", str(dsets))
     # ---------------------------
     # Setup model
