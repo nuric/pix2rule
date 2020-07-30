@@ -1,6 +1,5 @@
 """Unification MLP."""
 from typing import Dict, Any
-import os
 import logging
 import datetime
 from pathlib import Path
@@ -15,16 +14,14 @@ import configlib
 from configlib import config as C
 from reportlib import create_report
 import datasets
-import models.seq_model
+import models
 import utils.callbacks
 import utils.exceptions
 
-# Calm down tensorflow logging
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
-tf.get_logger().setLevel(logging.ERROR)
 # Setup logging
 logging.getLogger().setLevel(logging.INFO)
 logger = logging.getLogger(__name__)
+tf.get_logger().setLevel(logging.ERROR)
 
 # Disable scientific printing
 np.set_printoptions(suppress=True, precision=5, linewidth=180)
@@ -62,7 +59,7 @@ def train():
     logger.info("Loaded datasets: %s", str(dsets))
     # ---------------------------
     # Setup model
-    model = models.seq_model.build_model()
+    model = models.build_model()
     # Debug run
     if C["debug"]:
         report = create_report(model, dsets["train"])

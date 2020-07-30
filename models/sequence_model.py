@@ -34,7 +34,5 @@ def build_model() -> tf.keras.Model:
     }
     predictions = RuleLearner(max_invariants=C["max_invariants"])(combined)  # (B, S)
     return tf.keras.Model(
-        inputs=[seq_input, inv_input, inv_label],
-        outputs=predictions,
-        name="rule_learner",
+        inputs=[seq_input, inv_input, inv_label], outputs=predictions, name="seq_model",
     )
