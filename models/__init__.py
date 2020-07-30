@@ -1,4 +1,5 @@
 """Models library for custom layers and models."""
+from typing import Dict
 import tensorflow as tf
 
 import components
@@ -10,12 +11,14 @@ from . import sequence_model
 
 
 # We expose a list of custom layers for saving and loading models
-custom_layers = {l.__name__: l for l in [rule_learner.RuleLearner]}
+custom_layers: Dict[str, type] = {l.__name__: l for l in [rule_learner.RuleLearner]}
 # Merge into custom component layers
 custom_layers.update(components.custom_layers)
 
 # Model registry
-registry = {m.__name__.split(".")[-1]: m.build_model for m in [sequence_model]}
+# registry = {m.__name__.split(".")[-1]: m.build_model for m in [sequence_model]}
+# type checker seems to not recognise what is going above
+registry = {"sequence_model": sequence_model.build_model}
 
 # Model configuration / selection
 parser = configlib.add_parser("Global model options.")

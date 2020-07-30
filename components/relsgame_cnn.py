@@ -1,5 +1,4 @@
 """Relations Game CNN layer."""
-import tensorflow as tf
 import tensorflow.keras.layers as L
 
 
@@ -12,7 +11,7 @@ class RelationsGameCNN(L.Layer):
         self.cnn_l1 = L.Conv2D(32, 12, strides=6, activation="relu")
         self.reshape = L.Reshape((25, 32))  # Flatten the image regions
 
-    def call(self, inputs: tf.Tensor):
+    def call(self, inputs, **kwargs):
         """Process the provided image."""
         # inputs (B, 36, 36, 3)
         feats = self.cnn_l1(inputs)  # (B, 5, 5, 32)
