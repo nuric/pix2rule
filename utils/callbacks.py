@@ -26,8 +26,17 @@ class InvariantSelector(
         super(InvariantSelector, self).__init__()
         self.dataset = dataset
         # Start with null invariant to get a forward pass from model
-        self.inv_inputs = np.zeros((1, 5), dtype=np.int32)
-        self.inv_labels = np.zeros((1,), dtype=np.int32)
+        inputs_spec: Dict[str, tf.TensorSpec]
+        label_spec: tf.TensorSpec
+        # ({'key': TensorSpec, ...}, TensorSpec)
+        inputs_spec, label_spec = dataset.element_spec
+        self.inv_inputs = {
+            k: np.zeros((1,) + v.shape[1:], dtype=v.dtype.as_numpy_dtype)
+            for k, v in inputs_spec.items()
+        }
+        self.inv_label = np.zeros(
+            (1,) + label_spec.shape[1:], dtype=label_spec.dtype.as_numpy_dtype
+        )
         self.patience = patience
         self.max_invariants = max_invariants
         # Instance variables
@@ -40,8 +49,8 @@ class InvariantSelector(
 
         def add_invariants(inputs: Dict[str, tf.Tensor], label: tf.Tensor):
             """Add invariants to inputs tensor dictionary."""
-            inputs["inv_input"] = tf.constant(self.inv_inputs)
-            inputs["inv_label"] = tf.constant(self.inv_labels)
+            inputs.update({"inv_" + k: v for k, v in self.inv_inputs.items()})
+            inputs["inv_label"] = self.inv_label
             return inputs, label
 
         return (
@@ -53,13 +62,13 @@ class InvariantSelector(
     def on_train_begin(self, logs: Dict[str, float] = None):
         """Select invariants at the beginning of training."""
         # Get a random batch example
-        if np.all(self.inv_inputs != 0):
+        if all([np.all(v != 0) for v in self.inv_inputs.values()]):
             return
         report = create_report(self.model, self.create_dataset())
         ridxs = np.random.choice(len(report["input"]), size=1, replace=False)
-        self.inv_inputs = report["input"][ridxs]
-        self.inv_labels = report["labels"][ridxs]
-        print("Starting with invariant inputs:", self.inv_inputs, self.inv_labels)
+        self.inv_inputs = {k: report[k][ridxs] for k in self.dataset.element_spec[0]}
+        self.inv_label = report["label"][ridxs]
+        print("Starting with invariant inputs:", self.inv_inputs, self.inv_label)
         # Signal to update training dataset
         raise exceptions.NewInvariantException()
 
@@ -77,19 +86,20 @@ class InvariantSelector(
             # We have stagnated
             self.wait = 0
             report = create_report(self.model, self.create_dataset())
-            if len(self.inv_inputs) < self.max_invariants:
+            if len(self.inv_label) < self.max_invariants:
                 idx = np.argmin(np.sum(report["inv_uni"], -1), 0)  # ()
                 # print("Would have added:", report["input"][idx])
                 # losses = tf.keras.losses.sparse_categorical_crossentropy(
-                # report["labels"], report["predictions"]
+                # report["label"], report["output"]
                 # ).numpy()
                 # idx = np.argmin(losses, 0)  # ()
                 print("Adding new invariant:", report["input"][idx])
-                self.inv_inputs = np.concatenate(
-                    [self.inv_inputs, report["input"][None, idx]]
-                )
-                self.inv_labels = np.concatenate(
-                    [self.inv_labels, report["labels"][None, idx]]
+                for k in self.inv_inputs.keys():
+                    self.inv_inputs[k] = np.concatenate(
+                        [self.inv_inputs[k], report[k][None, idx]]
+                    )
+                self.inv_label = np.concatenate(
+                    [self.inv_label, report["label"][None, idx]]
                 )
                 raise exceptions.NewInvariantException()
 

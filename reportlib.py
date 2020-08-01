@@ -11,11 +11,11 @@ def create_report(model: tf.keras.Model, dataset: tf.data.Dataset) -> Dict[str, 
     """Take 1 batch from dataset and perform a forward pass of model."""
     report.clear()
     report["debug"] = True
-    for inputs, labels in dataset.take(1):
+    for inputs, label in dataset.take(1):
         # Models should populate global report dictionary
         report.update(inputs)
-        report["labels"] = labels
-        report["outputs"] = model(inputs, training=False)
+        report["label"] = label
+        report["output"] = model(inputs, training=False)
     report["debug"] = False
     return {k: v.numpy() for k, v in report.items() if k != "debug"}
 
