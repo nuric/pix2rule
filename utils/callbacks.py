@@ -37,6 +37,7 @@ class InvariantSelector(
         self.inv_label = np.zeros(
             (1,) + label_spec.shape[1:], dtype=label_spec.dtype.as_numpy_dtype
         )
+        self.is_blank_inv = True  # Flag to indicate if invariants are zeros
         self.patience = patience
         self.max_invariants = max_invariants
         # Instance variables
@@ -62,14 +63,15 @@ class InvariantSelector(
     def on_train_begin(self, logs: Dict[str, float] = None):
         """Select invariants at the beginning of training."""
         # Get a random batch example
-        if all([np.all(v != 0) for v in self.inv_inputs.values()]):
+        if not self.is_blank_inv:
             return
         report = create_report(self.model, self.create_dataset())
-        ridxs = np.random.choice(len(report["input"]), size=1, replace=False)
+        ridxs = np.random.choice(len(report["label"]), size=1, replace=False)
         self.inv_inputs = {k: report[k][ridxs] for k in self.dataset.element_spec[0]}
         self.inv_label = report["label"][ridxs]
         print("Starting with invariant inputs:", self.inv_inputs, self.inv_label)
         # Signal to update training dataset
+        self.is_blank_inv = False
         raise exceptions.NewInvariantException()
 
     def on_epoch_end(self, epoch, logs: Dict[str, float] = None):
