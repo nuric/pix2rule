@@ -57,20 +57,22 @@ def train():
     # ---------------------------
     # Setup model
     model = models.build_model()
-    # Debug run
+    # ---------------------------
+    # Setup Callbacks
+    inv_selector = utils.callbacks.InvariantSelector(
+        dsets["train"], max_invariants=C["max_invariants"]
+    )
+    # ---
+    # Pre-compile debug run
     if C["debug"]:
-        report = create_report(model, dsets["train"])
+        report = create_report(model, inv_selector.create_dataset())
         print("Debug report keys:", report.keys())
     model.compile(
         optimizer="adam",
         loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False),
         metrics=[tf.keras.metrics.SparseCategoricalAccuracy(name="acc")],
     )
-    # ---------------------------
-    # Setup Callbacks
-    inv_selector = utils.callbacks.InvariantSelector(
-        dsets["train"], max_invariants=C["max_invariants"]
-    )
+    # ---
     callbacks = [
         inv_selector,
         tf.keras.callbacks.ModelCheckpoint(
@@ -84,8 +86,7 @@ def train():
     # ---------------------------
     # Training loop
     logger.info("Starting training.")
-    retry = True
-    while retry:
+    while True:
         try:
             model.fit(
                 inv_selector.create_dataset(),
@@ -96,11 +97,10 @@ def train():
                 verbose=0,
             )
         except utils.exceptions.NewInvariantException:
-            retry = True
             logger.info("Resuming training with new invariants.")
-            print("Invs:", inv_selector.inv_inputs, sep="\n")
+            # print("Invs:", inv_selector.inv_inputs, sep="\n")
         else:
-            retry = False
+            break
     # ---
     # Log post training artifacts
     logging.info("Training completed.")

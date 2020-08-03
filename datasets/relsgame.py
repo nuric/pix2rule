@@ -158,7 +158,7 @@ def load_data() -> Dict[str, tf.data.Dataset]:
             np.int32
         )  # we expand types for tensorflow
         tfdata = tf.data.Dataset.from_tensor_slices(
-            ({"images": imgs, "task_ids": task_ids}, labels)
+            ({"image": imgs, "task_id": task_ids}, labels)
         )
         if dname == "train":
             tfdata = tfdata.shuffle(1000).batch(C["relsgame_batch_size"]).repeat()
