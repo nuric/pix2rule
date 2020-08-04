@@ -6,8 +6,7 @@ import numpy as np
 from configlib import config as C
 from reportlib import report
 from components.relsgame_cnn import RelationsGameCNN
-
-# from components.shuffle import Shuffle
+from components.shuffle import Shuffle
 from components import ops
 from .rule_learner import RelsgameRuleLearner
 
@@ -151,11 +150,10 @@ def build_model() -> tf.keras.Model:  # pylint: disable=too-many-locals
     # ---------------------------
     # Process the images
     visual_layer = RelationsGameCNN()
-    # shuffle_layer = Shuffle()
     raw_objects = visual_layer(image)  # (B, O, E)
     inv_raw_objects = visual_layer(inv_image)  # (I, O, E)
-    # raw_objects = shuffle_layer(raw_objects)  # (B, O, E)
-    # inv_raw_objects = shuffle_layer(inv_raw_objects)  # (I, O, E)
+    raw_objects = Shuffle()(raw_objects)  # (B, O, E)
+    inv_raw_objects = Shuffle()(inv_raw_objects)  # (I, O, E)
     # ---------------------------
     # Select a subset of objects
     obj_selector = ObjectSelection()

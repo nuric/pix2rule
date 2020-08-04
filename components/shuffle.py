@@ -15,15 +15,11 @@ class Shuffle(tf.keras.layers.Layer):
         """Perform forward pass."""
         # inputs (B, ..., X, ...)
         # ---------------------------
-        # tf.random.shuffle only shuffles axis 0
-        if self.shuffle_axis == 0:
-            return tf.random.shuffle(inputs, seed=self.seed)
-        # We need to swap axis with batch axis
-        perm = list(range(len(inputs.shape)))
-        perm[0], perm[self.shuffle_axis] = perm[self.shuffle_axis], perm[0]
-        transposed = tf.transpose(inputs, perm)  # (X, ..., B, ...)
-        shuffled = tf.random.shuffle(transposed, seed=self.seed)  # (X, ..., B, ...)
-        return tf.transpose(shuffled, perm)  # (B, ..., X, ...)
+        # Generate random idxs along that axis
+        ridxs = tf.random.shuffle(
+            tf.range(tf.shape(inputs)[self.shuffle_axis]), seed=self.seed
+        )  # (X,)
+        return tf.gather(inputs, ridxs, axis=self.shuffle_axis)  # (B, ..., X, ...)
 
     def get_config(self):
         """Serialisable configuration dictionary."""
