@@ -7,10 +7,8 @@ from components import unification
 from components import ops
 
 
-class RuleLearner(
-    tf.keras.layers.Layer
-):  # pylint: disable=too-many-instance-attributes
-    """Differentiable rule learning component."""
+class BaseRuleLearner(tf.keras.layers.Layer):
+    """Base class for rule learning, handle predicates and unification."""
 
     def __init__(self, max_invariants: int = 4, **kwargs):
         super().__init__(**kwargs)
@@ -34,13 +32,16 @@ class RuleLearner(
             initializer=tf.keras.initializers.RandomNormal(mean=-1),
             trainable=True,
         )  # (I, IL, IL, P2)
-        seq_len = input_shape["inv_unary_feats"][1]  # IL
-        self.inv_out_map = self.add_weight(
-            name="inv_out_map",
-            shape=(ilen, seq_len + 1),  # +1 for constant output
-            initializer="random_normal",
-            trainable=True,
-        )  # (I, IL+1)
+
+    @staticmethod
+    def softmax_scale(size: int, alpha: float = 0.999) -> tf.Tensor:
+        """Compute the scale by which we need to multiply prior to softmax."""
+        # alpha is softmax target scale on one-hot vector
+        sm_scale = tf.math.log(
+            alpha * tf.cast(size - 1, tf.float32) / (1 - alpha)
+        )  # k = log(alpha * (n-1) / (1-alpha)) derived from softmax(kx)
+        sm_scale = tf.cond(size == 1, lambda: 1.0, lambda: sm_scale)
+        return sm_scale
 
     def call(self, inputs: Dict[str, tf.Tensor], **kwargs):
         """Perform forward pass of the model."""
@@ -76,12 +77,56 @@ class RuleLearner(
         )  # (B, I, IL, BL)
         report["uni_sets"] = uni_sets
         # ---------------------------
+        # Find which invariants unify
+        inv_uni = tf.reduce_prod(ops.reduce_probsum(uni_sets, -1), -1)  # (B, I)
+        report["inv_uni"] = inv_uni
+        # inv_uni = tf.concat([inv_uni, tf.ones((inv_uni.shape[0], 1))], -1)  # (B, I+1)
+        # inv_select = leftright_cumprod(inv_uni)  # (B, I+1)
+        # inv_select = tf.nn.softmax(tf.math.log(inv_uni / (1 - inv_uni)))  # (B, I)
+        inv_select = tf.nn.softmax(inv_uni * self.softmax_scale(num_invs))  # (B, I)
+        report["inv_select"] = inv_select
+        # ---------------------------
+        return uni_sets, inv_select
+
+    def get_config(self):
+        """Serialisable configuration dictionary."""
+        config = super(BaseRuleLearner, self).get_config()
+        config.update({"max_invariants": self.max_invariants})
+        return config
+
+
+class SequencesRuleLearner(BaseRuleLearner):
+    """Differentiable rule learning component for sequences dataset."""
+
+    def build(self, input_shape: Dict[str, tf.TensorShape]):
+        """Build layer weights."""
+        # pylint: disable=attribute-defined-outside-init
+        # inputs {'unary_feats': (B, BL, P1), 'binary_feats': (B, BL, BL, P2),
+        #         'inv_unary_feats': (I, IL, P1), 'inv_binary_feats': (I, IL, IL, P2)}
+        super(SequencesRuleLearner, self).build(input_shape)
+        ilen = self.max_invariants  # upper bound on I
+        seq_len = input_shape["inv_unary_feats"][1]  # IL
+        self.inv_out_map = self.add_weight(
+            name="inv_out_map",
+            shape=(ilen, seq_len + 1),  # +1 for constant output
+            initializer="random_normal",
+            trainable=True,
+        )  # (I, IL+1)
+
+    def call(self, inputs: Dict[str, tf.Tensor], **kwargs):
+        """Perform forward pass of the model."""
+        # pylint: disable=too-many-locals
+        # inputs {'unary_feats': (B, BL, P1), 'binary_feats': (B, BL, BL, P2),
+        #         'inv_unary_feats': (I, IL, P1), 'inv_binary_feats': (I, IL, IL, P2)}
+        # ---------------------------
+        # Compute which invariant to select / unify
+        uni_sets, inv_select = super(SequencesRuleLearner, self).call(
+            inputs, **kwargs
+        )  # (B, I, IL, BL), (B, I)
+        # ---------------------------
         # Compute output edges
-        alpha = 0.999  # softmax target scale on one-hot vector
-        sm_scale = tf.math.log(
-            alpha * tf.cast(num_invs - 1, tf.float32) / (1 - alpha)
-        )  # k = log(alpha * (n-1) / (1-alpha)) derived from softmax(kx)
-        sm_scale = tf.cond(num_invs == 1, lambda: 1.0, lambda: sm_scale)
+        num_nodes = tf.shape(inputs["unary_feats"])[1]  # BL
+        sm_scale = self.softmax_scale(num_nodes)
         node_select = tf.nn.softmax(uni_sets * sm_scale, -1)  # (B, I, IL, BL)
         # (B, I, IL, BL) x (B, BL, S) -> (B, I, IL, S)
         edge_outs = tf.einsum(
@@ -90,6 +135,7 @@ class RuleLearner(
         # ---------------------------
         # Select the output node
         # Either a node in the output, or the constant output node
+        num_invs = tf.shape(inputs["inv_unary_feats"])[0]  # I
         inv_out_map = tf.nn.softmax(self.inv_out_map[:num_invs], -1)  # (I, IL+1)
         report["inv_out_map"] = inv_out_map
         # (I, IL) x (B, I, IL, S) -> (B, I, S)
@@ -103,15 +149,6 @@ class RuleLearner(
         inv_sym_out = inv_nodes_out + inv_out_map[:, -1:] * inv_const_out  # (B, I, S)
         report["inv_sym_out"] = inv_sym_out
         # ---------------------------
-        # Find which invariants unify
-        inv_uni = tf.reduce_prod(ops.reduce_probsum(uni_sets, -1), -1)  # (B, I)
-        report["inv_uni"] = inv_uni
-        # inv_uni = tf.concat([inv_uni, tf.ones((inv_uni.shape[0], 1))], -1)  # (B, I+1)
-        # inv_select = leftright_cumprod(inv_uni)  # (B, I+1)
-        # inv_select = tf.nn.softmax(tf.math.log(inv_uni / (1 - inv_uni)))  # (B, I)
-        inv_select = tf.nn.softmax(inv_uni * sm_scale)  # (B, I)
-        report["inv_select"] = inv_select
-        # ---------------------------
         # (B, I) x (B, I, S) -> (B, S)
         predictions = tf.einsum("bi,bis->bs", inv_select, inv_sym_out)
         # inv_preds = tf.einsum("bi,bis->bs", inv_select[:, :-1], inv_sym_out)
@@ -119,9 +156,3 @@ class RuleLearner(
         report["predictions"] = predictions
         # ---------------------------
         return predictions
-
-    def get_config(self):
-        """Serialisable configuration dictionary."""
-        config = super(RuleLearner, self).get_config()
-        config.update({"max_invariants": self.max_invariants})
-        return config

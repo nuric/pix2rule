@@ -4,7 +4,7 @@ import tensorflow as tf
 from configlib import config as C
 from reportlib import report
 from components.sequence_features import SequenceFeatures
-from .rule_learner import RuleLearner
+from .rule_learner import SequencesRuleLearner
 
 
 def build_model() -> tf.keras.Model:
@@ -32,7 +32,9 @@ def build_model() -> tf.keras.Model:
         "inv_binary_feats": inv_binary_feats,
         "inv_label": inv_label,
     }
-    predictions = RuleLearner(max_invariants=C["max_invariants"])(combined)  # (B, S)
+    predictions = SequencesRuleLearner(max_invariants=C["max_invariants"])(
+        combined
+    )  # (B, S)
     return tf.keras.Model(
         inputs=[seq_input, inv_input, inv_label], outputs=predictions, name="seq_model",
     )
