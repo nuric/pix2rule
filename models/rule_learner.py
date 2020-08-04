@@ -18,7 +18,8 @@ class BaseRuleLearner(tf.keras.layers.Layer):
         """Build layer weights."""
         # pylint: disable=attribute-defined-outside-init
         # inputs {'unary_feats': (B, BL, P1), 'binary_feats': (B, BL, BL, P2),
-        #         'inv_unary_feats': (I, IL, P1), 'inv_binary_feats': (I, IL, IL, P2)}
+        #         'inv_unary_feats': (I, IL, P1), 'inv_binary_feats': (I, IL, IL, P2),
+        #         'inv_label': (I,)}
         ilen = self.max_invariants  # upper bound on I
         self.inv_unaryp = self.add_weight(
             name="inv_unaryp",
@@ -47,7 +48,8 @@ class BaseRuleLearner(tf.keras.layers.Layer):
         """Perform forward pass of the model."""
         # pylint: disable=too-many-locals
         # inputs {'unary_feats': (B, BL, P1), 'binary_feats': (B, BL, BL, P2),
-        #         'inv_unary_feats': (I, IL, P1), 'inv_binary_feats': (I, IL, IL, P2)}
+        #         'inv_unary_feats': (I, IL, P1), 'inv_binary_feats': (I, IL, IL, P2),
+        #         'inv_label': (I,)}
         # ---------------------------
         num_invs = tf.shape(inputs["inv_unary_feats"])[0]  # I
         # Gather unary invariant map
@@ -102,7 +104,8 @@ class SequencesRuleLearner(BaseRuleLearner):
         """Build layer weights."""
         # pylint: disable=attribute-defined-outside-init
         # inputs {'unary_feats': (B, BL, P1), 'binary_feats': (B, BL, BL, P2),
-        #         'inv_unary_feats': (I, IL, P1), 'inv_binary_feats': (I, IL, IL, P2)}
+        #         'inv_unary_feats': (I, IL, P1), 'inv_binary_feats': (I, IL, IL, P2),
+        #         'inv_label': (I,)}
         super(SequencesRuleLearner, self).build(input_shape)
         ilen = self.max_invariants  # upper bound on I
         seq_len = input_shape["inv_unary_feats"][1]  # IL
@@ -117,7 +120,8 @@ class SequencesRuleLearner(BaseRuleLearner):
         """Perform forward pass of the model."""
         # pylint: disable=too-many-locals
         # inputs {'unary_feats': (B, BL, P1), 'binary_feats': (B, BL, BL, P2),
-        #         'inv_unary_feats': (I, IL, P1), 'inv_binary_feats': (I, IL, IL, P2)}
+        #         'inv_unary_feats': (I, IL, P1), 'inv_binary_feats': (I, IL, IL, P2),
+        #         'inv_label': (I,)}
         # ---------------------------
         # Compute which invariant to select / unify
         uni_sets, inv_select = super(SequencesRuleLearner, self).call(
@@ -153,6 +157,37 @@ class SequencesRuleLearner(BaseRuleLearner):
         predictions = tf.einsum("bi,bis->bs", inv_select, inv_sym_out)
         # inv_preds = tf.einsum("bi,bis->bs", inv_select[:, :-1], inv_sym_out)
         # predictions = inv_preds + inv_select[:, -1:] * null_pred  # (B, S)
+        report["predictions"] = predictions
+        # ---------------------------
+        return predictions
+
+
+class RelsgameRuleLearner(BaseRuleLearner):
+    """Relsgame rule learning component."""
+
+    def call(self, inputs: Dict[str, tf.Tensor], **kwargs):
+        """Perform forward pass of the model."""
+        # pylint: disable=too-many-locals
+        # inputs {'unary_feats': (B, BL, P1), 'binary_feats': (B, BL, BL, P2),
+        #         'inv_unary_feats': (I, IL, P1), 'inv_binary_feats': (I, IL, IL, P2),
+        #         'inv_label': (I,)}
+        # ---------------------------
+        # Compute which invariant to select / unify
+        uni_sets, inv_select = super(RelsgameRuleLearner, self).call(
+            inputs, **kwargs
+        )  # (B, I, IL, BL), (B, I)
+        # ---------------------------
+        # Compute invariant label outputs
+        inv_const_out = tf.one_hot(
+            inputs["inv_label"],
+            4,  # there are 4 labels in relsgame
+            on_value=1.0,
+            off_value=0.0,
+        )  # (I, S)
+        report["inv_sym_out"] = inv_const_out
+        # ---------------------------
+        # (B, I) x (B, I, S) -> (B, S)
+        predictions = tf.einsum("bi,is->bs", inv_select, inv_const_out)
         report["predictions"] = predictions
         # ---------------------------
         return predictions

@@ -158,7 +158,7 @@ class Evaluator(tf.keras.callbacks.Callback):
             if not dname.startswith("test"):
                 continue
             test_report: Dict[str, float] = self.model.evaluate(
-                self.dset_wrapper(dset), return_dict=True
+                self.dset_wrapper(dset), verbose=0, return_dict=True
             )
             test_report = {dname + "_" + k: v for k, v in test_report.items()}
             report.update(test_report)
