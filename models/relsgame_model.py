@@ -4,9 +4,10 @@ import tensorflow.keras.layers as L
 import numpy as np
 
 from configlib import config as C
-from reportlib import report, report_break
+from reportlib import report
 from components.relsgame_cnn import RelationsGameCNN
-from components.shuffle import Shuffle
+
+# from components.shuffle import Shuffle
 from components import ops
 from .rule_learner import RelsgameRuleLearner
 
@@ -31,10 +32,10 @@ class ObjectSelection(L.Layer):
         atts = list()
         last_select = object_scores
         for _ in range(self.num_select):
-            lr = ops.leftright_cumprod(last_select)  # (B, O)
-            atts.append(lr)
+            lr_reduction = ops.leftright_cumprod(last_select)  # (B, O)
+            atts.append(lr_reduction)
             # We can't select object again
-            last_select *= 1 - lr
+            last_select *= 1 - lr_reduction
         object_atts = tf.stack(atts, 1)  # (B, N, O)
         report["object_atts"] = object_atts
         # ---------------------------
@@ -91,12 +92,14 @@ class RelsgameFeatures(L.Layer):
         unary_feats = tf.nn.softmax(unary_feats, -1)  # (B, O, U, V)
         unary_feats = tf.reshape(unary_feats, ushape)  # (B, O, P1)
         unary_feats = tf.pad(
-            unary_feats, [[0, 0], [0, 0], [0, self.num_tasks]]
+            unary_feats, [[0, 0], [0, 0], [0, self.num_tasks]], constant_values=0.0
         )  # (B, O, P1+T)
         # ---
         task_embed = self.task_embedding(inputs["task_id"])  # (B, T)
         task_embed = tf.pad(
-            task_embed, [[0, 0], [np.prod(self.num_unary_with_disjuncts), 0]]
+            task_embed,
+            [[0, 0], [np.prod(self.num_unary_with_disjuncts), 0]],
+            constant_values=0.0,
         )  # (B, P1+T)
         # ---
         unary_feats = tf.concat([unary_feats, task_embed[:, None]], 1)  # (B, O+1, P1+T)
@@ -117,7 +120,7 @@ class RelsgameFeatures(L.Layer):
         # ---
         # Append empty task node which has no binary relations with other objects
         binary_feats = tf.pad(
-            binary_feats, [[0, 0], [0, 1], [0, 1], [0, 0]]
+            binary_feats, [[0, 0], [0, 1], [0, 1], [0, 0]], constant_values=0.0
         )  # (B, O+1, O+1, P2)
         # ---------------------------
         return unary_feats, binary_feats
@@ -134,7 +137,7 @@ class RelsgameFeatures(L.Layer):
         return config
 
 
-def build_model() -> tf.keras.Model:
+def build_model() -> tf.keras.Model:  # pylint: disable=too-many-locals
     """Build the trainable model."""
     # ---------------------------
     # Setup inputs

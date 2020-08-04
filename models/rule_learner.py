@@ -173,7 +173,7 @@ class RelsgameRuleLearner(BaseRuleLearner):
         #         'inv_label': (I,)}
         # ---------------------------
         # Compute which invariant to select / unify
-        uni_sets, inv_select = super(RelsgameRuleLearner, self).call(
+        _, inv_select = super(RelsgameRuleLearner, self).call(
             inputs, **kwargs
         )  # (B, I, IL, BL), (B, I)
         # ---------------------------
