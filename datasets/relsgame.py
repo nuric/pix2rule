@@ -150,13 +150,12 @@ def load_data() -> Dict[str, tf.data.Dataset]:
     # Curate datasets
     dsets: Dict[str, tf.data.Dataset] = dict()
     for dname in dsetnames:
-        imgs = tf.image.convert_image_dtype(dnpz[dname + "_images"], tf.float32)
-        task_ids = dnpz[dname + "_task_ids"].astype(
-            np.int32
-        )  # we expand types for tensorflow
-        labels = dnpz[dname + "_labels"].astype(
-            np.int32
-        )  # we expand types for tensorflow
+        # Shuffle in unison
+        ridxs = np.random.permutation(dnpz[dname + "_labels"].shape[0])
+        imgs = tf.image.convert_image_dtype(dnpz[dname + "_images"][ridxs], tf.float32)
+        # we expand types for tensorflow
+        task_ids = dnpz[dname + "_task_ids"][ridxs].astype(np.int32)
+        labels = dnpz[dname + "_labels"][ridxs].astype(np.int32)
         tfdata = tf.data.Dataset.from_tensor_slices(
             ({"image": imgs, "task_id": task_ids}, labels)
         )
