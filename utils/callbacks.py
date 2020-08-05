@@ -10,7 +10,6 @@ import mlflow
 import mlflow.keras
 
 import models
-from configlib import config as C
 from reportlib import create_report
 from . import exceptions
 
@@ -95,7 +94,7 @@ class InvariantSelector(
                 # report["label"], report["output"]
                 # ).numpy()
                 # idx = np.argmin(losses, 0)  # ()
-                print("Adding new invariant:", report["input"][idx])
+                print("Adding new invariant with label:", report["label"][idx])
                 for k in self.inv_inputs.keys():
                     self.inv_inputs[k] = np.concatenate(
                         [self.inv_inputs[k], report[k][None, idx]]
@@ -180,10 +179,12 @@ class ArtifactSaver(tf.keras.callbacks.Callback):
     def __init__(
         self,
         datasets: Dict[str, tf.data.Dataset],
+        artifact_dir: Path,
         dset_wrapper: Callable[[tf.data.Dataset], tf.data.Dataset] = None,
     ):
         super(ArtifactSaver, self).__init__()
         self.datasets = datasets
+        self.artifact_dir = artifact_dir
         self.dset_wrapper = dset_wrapper or (lambda x: x)
 
     def on_train_end(self, logs: Dict[str, float] = None):
@@ -191,7 +192,7 @@ class ArtifactSaver(tf.keras.callbacks.Callback):
         # Save model summary
         summary: List[str] = list()
         self.model.summary(print_fn=summary.append)
-        art_dir = Path(C["artifact_dir"])
+        art_dir = self.artifact_dir
         summary_path = art_dir / "model_summary.txt"
         with summary_path.open("w") as summary_file:
             summary_file.write("\n".join(summary))

@@ -14,6 +14,7 @@ import datasets
 import models
 import utils.callbacks
 import utils.exceptions
+import utils.hashing
 
 # Setup logging
 logging.getLogger().setLevel(logging.INFO)
@@ -49,8 +50,8 @@ parser.add_argument("--tracking_uri", help="MLflow tracking URI.")
 # ---------------------------
 
 
-def train():
-    """Training loop."""
+def train(run_name: str = None):
+    """Training loop for single run."""
     # Load data
     dsets = datasets.load_data()
     logger.info("Loaded datasets: %s", str(dsets))
@@ -73,15 +74,19 @@ def train():
         metrics=[tf.keras.metrics.SparseCategoricalAccuracy(name="acc")],
     )
     # ---
+    run_name = run_name or utils.hashing.dict_hash(C)
+    art_dir = Path(C["experiment_name"]) / run_name
+    art_dir.mkdir(parents=True, exist_ok=True)
+    logger.info("Local artifact dir is %s", str(art_dir))
     callbacks = [
         inv_selector,
         tf.keras.callbacks.ModelCheckpoint(
-            C["artifact_dir"] + "/models/latest_model", monitor="loss"
+            str(art_dir) + "/models/latest_model", monitor="loss"
         ),
         utils.callbacks.EarlyStopAtConvergence(C["converged_loss"]),
         utils.callbacks.TerminateOnNaN(),
         utils.callbacks.Evaluator(dsets, inv_selector.create_dataset),
-        utils.callbacks.ArtifactSaver(dsets, inv_selector.create_dataset),
+        utils.callbacks.ArtifactSaver(dsets, art_dir, inv_selector.create_dataset),
     ]
     # ---------------------------
     # Training loop
@@ -106,13 +111,11 @@ def train():
     logging.info("Training completed.")
 
 
-def main():
-    """Main entry point function."""
+def mlflow_train():
+    """Setup mlflow and train."""
     # ---------------------------
-    # Store in global config object inside configlib
-    config_hash = configlib.parse()
-    print("Running with configuration:")
-    configlib.print_config()
+    # Curate configuration parameters
+    config_hash = utils.hashing.dict_hash(C)
     # ---------------------------
     # Tensorflow graph mode (i.e. tf.function)
     tf.config.experimental_run_functions_eagerly(C["debug"])
@@ -139,20 +142,16 @@ def main():
     # ---
     # Setup mlflow tracking
     mlflow_run = mlflow.start_run(run_id=run_id)
+    mlflow.log_params(C)
     run_id = mlflow_run.info.run_id  # either brand new or the existing one
     logger.info("Experiment id: %s", mlflow_run.info.experiment_id)
     logger.info("Run id: %s", run_id)
-    mlflow.log_params(C)
     mlflow.set_tag("config_hash", config_hash)
-    art_dir = Path(C["experiment_name"]) / run_id
-    art_dir.mkdir(parents=True, exist_ok=True)
-    C["artifact_dir"] = str(art_dir)
-    logger.info("Local artifact dir is %s", str(art_dir))
     logger.info("Artifact uri is %s", mlflow.get_artifact_uri())
     # ---------------------------
     # Big data machine learning in the cloud
     try:
-        train()
+        train(run_name=run_id)
     except KeyboardInterrupt:
         logger.warning("Pausing training on keyboard interrupt.")
     else:
@@ -160,4 +159,10 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # ---------------------------
+    # Store in global config object inside configlib
+    configuration_hash = configlib.parse()
+    print("Running with configuration hash {configuration_hash}:")
+    configlib.print_config()
+    # ---------------------------
+    mlflow_train()
