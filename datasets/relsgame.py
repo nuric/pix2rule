@@ -68,6 +68,21 @@ def get_compressed_path() -> Path:
     return Path(C["data_dir"]) / "relsgame" / fname
 
 
+def downsize_images(images: np.ndarray) -> np.ndarray:
+    """Downsize images removing unnecessary pixels."""
+    # images (N, 36, 36, 3)
+    # images are formed by 1 pad, 3x3 pixel blocks, 2 pixel pad
+    # each section is 12 pixels, and set in a 3x3 grid giving 36x36
+    # ---------------------------
+    # We will remove extra padding on the top and left,
+    # and strip 1 padding on right and bottom
+    # as well as reduce 3x3 pixel blocks down to 1x1
+    # The images will look identical afterwards so no semantics is lost
+    cidxs = np.arange(1, 12, 3)
+    cidxs = np.concatenate([cidxs, cidxs + 12, cidxs + 12 * 2])
+    return images[:, cidxs[:, None], cidxs]  # (N, 12, 12, 3)
+
+
 def create_compressed_files():
     """Load compressed shortened versions of data files."""
     # ---------------------------
@@ -97,7 +112,7 @@ def create_compressed_files():
         # Load npz file
         dnpz = np.load(fname)
         # dnpz {'images': (N, 36, 36, 3), 'task_ids': (N,), 'labels': (N,)}
-        imgs, labels = dnpz["images"], dnpz["labels"].squeeze()
+        imgs, labels = downsize_images(dnpz["images"]), dnpz["labels"].squeeze()
         assert len(imgs.shape) == 4, "Image data not in expected dimensions."
         assert (
             imgs.shape[0] == labels.shape[0]

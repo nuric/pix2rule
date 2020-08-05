@@ -140,10 +140,10 @@ def build_model() -> tf.keras.Model:  # pylint: disable=too-many-locals
     """Build the trainable model."""
     # ---------------------------
     # Setup inputs
-    image = L.Input(shape=(36, 36, 3), name="image", dtype="float32")  # (B, W, H, C)
+    image = L.Input(shape=(12, 12, 3), name="image", dtype="float32")  # (B, W, H, C)
     task_id = L.Input(shape=(), name="task_id", dtype="int32")  # (B,)
     inv_image = L.Input(
-        shape=(36, 36, 3), name="inv_image", dtype="float32"
+        shape=(12, 12, 3), name="inv_image", dtype="float32"
     )  # (I, W, H, C)
     inv_task_id = L.Input(shape=(), name="inv_task_id", dtype="int32")  # (I,)
     inv_label = L.Input(shape=(), name="inv_label", dtype="int32")  # (I,)
