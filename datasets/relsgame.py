@@ -11,6 +11,7 @@ import tensorflow as tf
 
 import configlib
 from configlib import config as C
+import utils.hashing
 
 logger = logging.getLogger(__name__)
 
@@ -60,10 +61,11 @@ def get_file(fname: str) -> str:
 
 def get_compressed_path() -> Path:
     """Return compressed dataset npz path for given training and test sizes."""
-    return (
-        Path(C["data_dir"])
-        / f"relsgame/train{C['relsgame_train_size']}_test{C['relsgame_test_size']}.npz"
+    task_hash = utils.hashing.set_hash(C["relsgame_tasks"] or all_tasks)
+    fname = (
+        f"train{C['relsgame_train_size']}_test{C['relsgame_test_size']}_{task_hash}.npz"
     )
+    return Path(C["data_dir"]) / "relsgame" / fname
 
 
 def create_compressed_files():
