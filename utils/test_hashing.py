@@ -30,6 +30,25 @@ class TestListHash(unittest.TestCase):
         self.assertNotEqual(lhash1, lhash2)
 
 
+class TestSetHash(unittest.TestCase):
+    """Test cases for set hashing function."""
+
+    def test_can_hash_single_type(self):
+        """Can hash a set of single typed values."""
+        shash = hashing.set_hash({1, 2})
+        self.assertTrue(shash)
+
+    def test_cannot_hash_var_type(self):
+        """Cannot hash a set of varying typed values."""
+        self.assertRaises(ValueError, hashing.set_hash, {"1", 2})
+
+    def test_order_produces_same_hash(self):
+        """Different ordered elements produce same hash."""
+        shash1 = hashing.set_hash([1, 2, 3])
+        shash2 = hashing.set_hash([2, 1, 3])
+        self.assertEqual(shash1, shash2)
+
+
 class TestDictHash(unittest.TestCase):
     """Test cases for dictionary hashing function."""
 
