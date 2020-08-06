@@ -2,7 +2,7 @@
 import tensorflow as tf
 
 from configlib import config as C
-from reportlib import report
+from reportlib import report_tensor
 from components.sequence_features import SequenceFeatures
 from .rule_learner import SequencesRuleLearner
 
@@ -16,8 +16,8 @@ def build_model() -> tf.keras.Model:
         shape=(seq_len,), name="inv_input", dtype="int32"
     )  # (I, IL)
     inv_label = tf.keras.Input(shape=(), name="inv_label", dtype="int32")  # (I,)
-    report["inv_input"] = inv_input
-    report["inv_label"] = inv_label
+    report_tensor("inv_input", inv_input)
+    report_tensor("inv_label", inv_label)
     # Extract features
     feat_ext = SequenceFeatures()
     unary_feats, binary_feats = feat_ext(seq_input)  # (B, BL, P1), (B, BL, BL, P2)

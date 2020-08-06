@@ -4,7 +4,7 @@ import tensorflow.keras.layers as L
 import numpy as np
 
 from configlib import config as C
-from reportlib import report
+from reportlib import report_tensor
 from components.relsgame_cnn import RelationsGameCNN
 from components.shuffle import Shuffle
 from components import ops
@@ -25,7 +25,7 @@ class ObjectSelection(L.Layer):
         # ---------------------------
         object_scores = self.object_score(inputs)  # (B, O, 1)
         object_scores = tf.squeeze(object_scores, -1)  # (B, O)
-        report["object_scores"] = object_scores
+        report_tensor("object_scores", object_scores)
         # ---------------------------
         # Do a left to right selection
         atts = list()
@@ -36,7 +36,7 @@ class ObjectSelection(L.Layer):
             # We can't select object again
             last_select *= 1 - lr_reduction
         object_atts = tf.stack(atts, 1)  # (B, N, O)
-        report["object_atts"] = object_atts
+        report_tensor("object_atts", object_atts)
         # ---------------------------
         # Select the objects based on the attention
         # (B, N, O) x (B, O, E) -> (B, N, E)

@@ -2,7 +2,7 @@
 from typing import Dict
 import tensorflow as tf
 
-from reportlib import report
+from reportlib import report_tensor
 from components import unification
 from components import ops
 
@@ -61,8 +61,8 @@ class BaseRuleLearner(tf.keras.layers.Layer):
         inv_binary_conds = (
             inv_binary_map * inputs["inv_binary_feats"]
         )  # (I, IL, IL, P2)
-        report["inv_unary_conds"] = inv_unary_conds
-        report["inv_binary_conds"] = inv_binary_conds
+        report_tensor("inv_unary_conds", inv_unary_conds)
+        report_tensor("inv_binary_conds", inv_binary_conds)
         inv_loss = tf.reduce_sum(inv_unary_conds, [1, 2]) + tf.reduce_sum(
             inv_binary_conds, [1, 2, 3]
         )  # (I,)
@@ -77,16 +77,16 @@ class BaseRuleLearner(tf.keras.layers.Layer):
             inputs["binary_feats"],
             iterations=1,
         )  # (B, I, IL, BL)
-        report["uni_sets"] = uni_sets
+        report_tensor("uni_sets", uni_sets)
         # ---------------------------
         # Find which invariants unify
         inv_uni = tf.reduce_prod(ops.reduce_probsum(uni_sets, -1), -1)  # (B, I)
-        report["inv_uni"] = inv_uni
+        report_tensor("inv_uni", inv_uni)
         # inv_uni = tf.concat([inv_uni, tf.ones((inv_uni.shape[0], 1))], -1)  # (B, I+1)
         # inv_select = leftright_cumprod(inv_uni)  # (B, I+1)
         # inv_select = tf.nn.softmax(tf.math.log(inv_uni / (1 - inv_uni)))  # (B, I)
         inv_select = tf.nn.softmax(inv_uni * self.softmax_scale(num_invs))  # (B, I)
-        report["inv_select"] = inv_select
+        report_tensor("inv_select", inv_select)
         # ---------------------------
         return uni_sets, inv_select
 
@@ -141,7 +141,7 @@ class SequencesRuleLearner(BaseRuleLearner):
         # Either a node in the output, or the constant output node
         num_invs = tf.shape(inputs["inv_unary_feats"])[0]  # I
         inv_out_map = tf.nn.softmax(self.inv_out_map[:num_invs], -1)  # (I, IL+1)
-        report["inv_out_map"] = inv_out_map
+        report_tensor("inv_out_map", inv_out_map)
         # (I, IL) x (B, I, IL, S) -> (B, I, S)
         inv_nodes_out = tf.einsum("il,bilp->bip", inv_out_map[:, :-1], edge_outs)
         inv_const_out = tf.one_hot(
@@ -151,13 +151,13 @@ class SequencesRuleLearner(BaseRuleLearner):
             off_value=0.0,
         )  # (I, S)
         inv_sym_out = inv_nodes_out + inv_out_map[:, -1:] * inv_const_out  # (B, I, S)
-        report["inv_sym_out"] = inv_sym_out
+        report_tensor("inv_sym_out", inv_sym_out)
         # ---------------------------
         # (B, I) x (B, I, S) -> (B, S)
         predictions = tf.einsum("bi,bis->bs", inv_select, inv_sym_out)
         # inv_preds = tf.einsum("bi,bis->bs", inv_select[:, :-1], inv_sym_out)
         # predictions = inv_preds + inv_select[:, -1:] * null_pred  # (B, S)
-        report["predictions"] = predictions
+        report_tensor("predictions", predictions)
         # ---------------------------
         return predictions
 
@@ -184,10 +184,10 @@ class RelsgameRuleLearner(BaseRuleLearner):
             on_value=1.0,
             off_value=0.0,
         )  # (I, S)
-        report["inv_sym_out"] = inv_const_out
+        report_tensor("inv_sym_out", inv_const_out)
         # ---------------------------
         # (B, I) x (B, I, S) -> (B, S)
         predictions = tf.einsum("bi,is->bs", inv_select, inv_const_out)
-        report["predictions"] = predictions
+        report_tensor("predictions", predictions)
         # ---------------------------
         return predictions
