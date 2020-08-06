@@ -116,6 +116,10 @@ class RelsgameFeatures(L.Layer):
         )  # (B, O, O, U, V)
         binary_feats = tf.nn.softmax(binary_feats, -1)  # (B, O, O, U, V)
         binary_feats = tf.reshape(binary_feats, bshape)  # (B, O, O, P2)
+        # Mask out self relations p(X,X) = 0
+        binary_feats *= (
+            1 - tf.eye(tf.shape(binary_feats)[1])[..., None]
+        )  # (B, O, O, P2)
         # ---
         # Append empty task node which has no binary relations with other objects
         binary_feats = tf.pad(
