@@ -3,7 +3,7 @@ numpy
 pandas
 tensorflow
 # Tools
-jupyter
+jupyterlab
 mlflow
 invoke
 tqdm
