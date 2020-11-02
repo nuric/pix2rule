@@ -9,6 +9,6 @@ class TestRelationsGameCNN(tf.test.TestCase):
 
     def test_number_of_objects(self):
         """The relations game CNN returns 25 objects."""
-        images = tf.random.uniform((2, 36, 36, 3), dtype=tf.float32)  # 2 random images
+        images = tf.random.uniform((2, 12, 12, 3), dtype=tf.float32)  # 2 random images
         res = RelationsGameCNN()(images)  # (B, 5, 5, 32)
         self.assertEqual(res.shape, [2, 25, 32])
