@@ -1,0 +1,9 @@
+# Minimal dependencies to run CI
+# Numerical
+numpy
+tensorflow
+# Tools
+invoke
+pylint
+black
+mypy

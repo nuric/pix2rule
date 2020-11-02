@@ -22,6 +22,6 @@ jobs:
         - name: Install dependencies
           run: |
               python3 -m pip install --upgrade pip
-              if [ -f requirements.txt ]; then pip3 install -r requirements.txt; fi
+              if [ -f ci_requirements.txt ]; then pip3 install -r ci_requirements.txt; fi
         - name: Invoke build
           run: python3 -m invoke build
