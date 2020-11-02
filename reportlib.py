@@ -1,5 +1,5 @@
 """Global reporting tool to extract eager tensors."""
-from typing import Dict, Any, Union
+from typing import Dict, Any
 import pdb
 
 import tensorflow as tf
@@ -12,7 +12,7 @@ _report: Dict[str, Any] = dict()
 def report_tensor(key: str, tensor: tf.Tensor):
     """Report a tensor to collect at debug or predict time."""
     assert isinstance(key, str), "Keys must be strings."
-    key_count = sum([1 for k in _report.keys() if k.startswith(key)])
+    key_count = sum([1 for k in _report if k.startswith(key)])
     if key_count:
         key = key + str(key_count)
     _report[key] = tensor
