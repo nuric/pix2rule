@@ -36,5 +36,7 @@ def build_model() -> tf.keras.Model:
         combined
     )  # (B, S)
     return tf.keras.Model(
-        inputs=[seq_input, inv_input, inv_label], outputs=predictions, name="seq_model",
+        inputs=[seq_input, inv_input, inv_label],
+        outputs=predictions,
+        name="seq_model",
     )

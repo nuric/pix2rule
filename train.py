@@ -33,7 +33,10 @@ parser.add_argument(
     "--max_invariants", default=4, type=int, help="Number of maximum invariants."
 )
 parser.add_argument(
-    "--max_steps", default=4000, type=int, help="Maximum number of batch update steps.",
+    "--max_steps",
+    default=4000,
+    type=int,
+    help="Maximum number of batch update steps.",
 )
 parser.add_argument(
     "--converged_loss",
