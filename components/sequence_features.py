@@ -7,7 +7,7 @@ class SequenceFeatures(L.Layer):
     """Compute sequence features of a given input."""
 
     def __init__(self, num_symbols: int = 8, **kwargs):
-        super(SequenceFeatures, self).__init__(**kwargs)
+        super().__init__(**kwargs)
         self.num_symbols = num_symbols
         self.embedding = L.Embedding(
             1 + num_symbols,
@@ -41,6 +41,6 @@ class SequenceFeatures(L.Layer):
 
     def get_config(self):
         """Serialisable configuration dictionary."""
-        config = super(SequenceFeatures, self).get_config()
+        config = super().get_config()
         config.update({"num_symbols": self.num_symbols})
         return config

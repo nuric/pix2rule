@@ -92,7 +92,7 @@ class BaseRuleLearner(tf.keras.layers.Layer):
 
     def get_config(self):
         """Serialisable configuration dictionary."""
-        config = super(BaseRuleLearner, self).get_config()
+        config = super().get_config()
         config.update({"max_invariants": self.max_invariants})
         return config
 
@@ -106,7 +106,7 @@ class SequencesRuleLearner(BaseRuleLearner):
         # inputs {'unary_feats': (B, BL, P1), 'binary_feats': (B, BL, BL, P2),
         #         'inv_unary_feats': (I, IL, P1), 'inv_binary_feats': (I, IL, IL, P2),
         #         'inv_label': (I,)}
-        super(SequencesRuleLearner, self).build(input_shape)
+        super().build(input_shape)
         ilen = self.max_invariants  # upper bound on I
         seq_len = input_shape["inv_unary_feats"][1]  # IL
         self.inv_out_map = self.add_weight(
@@ -124,9 +124,7 @@ class SequencesRuleLearner(BaseRuleLearner):
         #         'inv_label': (I,)}
         # ---------------------------
         # Compute which invariant to select / unify
-        uni_sets, inv_select = super(SequencesRuleLearner, self).call(
-            inputs, **kwargs
-        )  # (B, I, IL, BL), (B, I)
+        uni_sets, inv_select = super().call(inputs, **kwargs)  # (B, I, IL, BL), (B, I)
         # ---------------------------
         # Compute output edges
         num_nodes = tf.shape(inputs["unary_feats"])[1]  # BL
@@ -173,9 +171,7 @@ class RelsgameRuleLearner(BaseRuleLearner):
         #         'inv_label': (I,)}
         # ---------------------------
         # Compute which invariant to select / unify
-        _, inv_select = super(RelsgameRuleLearner, self).call(
-            inputs, **kwargs
-        )  # (B, I, IL, BL), (B, I)
+        _, inv_select = super().call(inputs, **kwargs)  # (B, I, IL, BL), (B, I)
         # ---------------------------
         # Compute invariant label outputs
         inv_const_out = tf.one_hot(

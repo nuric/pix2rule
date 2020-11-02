@@ -7,7 +7,7 @@ class Shuffle(tf.keras.layers.Layer):
     This layer applies the same shuffle to all elements along the axis."""
 
     def __init__(self, shuffle_axis: int = 1, seed: int = None, **kwargs):
-        super(Shuffle, self).__init__(**kwargs)
+        super().__init__(**kwargs)
         self.shuffle_axis = shuffle_axis
         self.seed = seed
 
@@ -23,6 +23,6 @@ class Shuffle(tf.keras.layers.Layer):
 
     def get_config(self):
         """Serialisable configuration dictionary."""
-        config = super(Shuffle, self).get_config()
+        config = super().get_config()
         config.update({"shuffle_axis": self.shuffle_axis, "seed": self.seed})
         return config

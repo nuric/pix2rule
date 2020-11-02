@@ -6,7 +6,7 @@ class RelationsGameCNN(L.Layer):
     """Relations Game CNN to process images."""
 
     def __init__(self, **kwargs):
-        super(RelationsGameCNN, self).__init__(**kwargs)
+        super().__init__(**kwargs)
         # Values taken from paper: https://arxiv.org/pdf/1905.10307.pdf
         # and downsized to save computing resources
         self.cnn_l1 = L.Conv2D(32, 4, strides=2, activation="relu")

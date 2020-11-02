@@ -22,7 +22,7 @@ class InvariantSelector(
     def __init__(
         self, dataset: tf.data.Dataset, max_invariants: int = 4, patience: int = 10
     ):
-        super(InvariantSelector, self).__init__()
+        super().__init__()
         self.dataset = dataset
         # Start with null invariant to get a forward pass from model
         inputs_spec: Dict[str, tf.TensorSpec]
@@ -65,10 +65,13 @@ class InvariantSelector(
         if not self.is_blank_inv:
             return
         report = create_report(self.model, self.create_dataset())
-        ridxs = np.random.choice(len(report["label"]), size=1, replace=False)
+        ridxs = np.random.choice(len(report["label"]), size=10, replace=False)
+        # ---
+        # _, ridxs = np.unique(report["label"], return_index=True)
+        # ---
         self.inv_inputs = {k: report[k][ridxs] for k in self.dataset.element_spec[0]}
         self.inv_label = report["label"][ridxs]
-        print("Starting with invariant inputs:", self.inv_inputs, self.inv_label)
+        print("Starting with invariant inputs with labels:", self.inv_label)
         # Signal to update training dataset
         self.is_blank_inv = False
         raise exceptions.NewInvariantException()
@@ -109,7 +112,7 @@ class EarlyStopAtConvergence(tf.keras.callbacks.Callback):
     """Early stop the training if the loss has reached a lower bound."""
 
     def __init__(self, converge_value: float = 0.01):
-        super(EarlyStopAtConvergence, self).__init__()
+        super().__init__()
         self.converge_value = converge_value
         self.has_converged = False
 
@@ -144,7 +147,7 @@ class Evaluator(tf.keras.callbacks.Callback):
         datasets: Dict[str, tf.data.Dataset],
         dset_wrapper: Callable[[tf.data.Dataset], tf.data.Dataset] = None,
     ):
-        super(Evaluator, self).__init__()
+        super().__init__()
         self.datasets = datasets
         self.last_time = time.time()
         self.dset_wrapper = dset_wrapper or (lambda x: x)
@@ -182,7 +185,7 @@ class ArtifactSaver(tf.keras.callbacks.Callback):
         artifact_dir: Path,
         dset_wrapper: Callable[[tf.data.Dataset], tf.data.Dataset] = None,
     ):
-        super(ArtifactSaver, self).__init__()
+        super().__init__()
         self.datasets = datasets
         self.artifact_dir = artifact_dir
         self.dset_wrapper = dset_wrapper or (lambda x: x)

@@ -14,8 +14,8 @@ from .rule_learner import RelsgameRuleLearner
 class ObjectSelection(L.Layer):
     """Select a subset of objects based on object score."""
 
-    def __init__(self, num_select: int = 4, **kwargs):
-        super(ObjectSelection, self).__init__(**kwargs)
+    def __init__(self, num_select: int = 2, **kwargs):
+        super().__init__(**kwargs)
         self.num_select = num_select
         self.object_score = L.Dense(1, activation="sigmoid")
 
@@ -26,6 +26,10 @@ class ObjectSelection(L.Layer):
         object_scores = self.object_score(inputs)  # (B, O, 1)
         object_scores = tf.squeeze(object_scores, -1)  # (B, O)
         report_tensor("object_scores", object_scores)
+        # ---------------------------
+        # TopK selection
+        # _, idxs = tf.math.top_k(object_scores, k=self.num_select)  # (B, N)
+        # return tf.gather(inputs, idxs, axis=1, batch_dims=1)  # (B, N, O)
         # ---------------------------
         # Do a left to right selection
         atts = list()
@@ -45,7 +49,7 @@ class ObjectSelection(L.Layer):
 
     def get_config(self):
         """Serialisable configuration dictionary."""
-        config = super(ObjectSelection, self).get_config()
+        config = super().get_config()
         config.update({"num_select": self.num_select})
         return config
 
@@ -61,7 +65,7 @@ class RelsgameFeatures(L.Layer):
         num_binary_disjuncts: int = 4,
         **kwargs
     ):
-        super(RelsgameFeatures, self).__init__(**kwargs)
+        super().__init__(**kwargs)
         self.num_unary_with_disjuncts = (num_unary, num_unary_disjuncts)
         self.num_binary_with_disjucts = (num_binary, num_binary_disjuncts)
         self.unary_model = L.Dense(num_unary * num_unary_disjuncts, name="unary_model")
@@ -130,7 +134,7 @@ class RelsgameFeatures(L.Layer):
 
     def get_config(self):
         """Serialisable configuration dictionary."""
-        config = super(RelsgameFeatures, self).get_config()
+        config = super().get_config()
         config.update(
             {
                 "num_unary_with_disjuncts": self.num_unary_with_disjuncts,

@@ -164,8 +164,8 @@ def mlflow_train():
 if __name__ == "__main__":
     # ---------------------------
     # Store in global config object inside configlib
-    configuration_hash = configlib.parse()
-    print("Running with configuration hash {configuration_hash}:")
+    CONFIG_HASH = configlib.parse()
+    print("Running with configuration hash {CONFIG_HASH}:")
     configlib.print_config()
     # ---------------------------
     mlflow_train()
