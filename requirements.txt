@@ -4,8 +4,12 @@ pandas
 tensorflow
 # Tools
 jupyter
+mlflow
 invoke
 tqdm
+pylint
+black
+mypy
 # Plotting
 matplotlib
 seaborn
