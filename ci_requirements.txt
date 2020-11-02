@@ -3,6 +3,8 @@
 numpy
 tensorflow
 # Tools
+mlflow
+tqdm
 invoke
 pylint
 black
