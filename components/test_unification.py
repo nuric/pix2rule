@@ -38,9 +38,11 @@ num_p1 = batch_examples[0].shape[-1]  # P1
 num_p2 = batch_examples[1].shape[-1]  # P2
 
 
-def batch_unify(inv_unary: tf.Tensor, inv_binary: tf.Tensor) -> tf.Tensor:
+def batch_unify(
+    inv_unary: tf.Tensor, inv_binary: tf.Tensor, iterations: int = 1
+) -> tf.Tensor:
     """Unify given rules with test suite examples."""
-    return unify(inv_unary, inv_binary, *batch_examples)
+    return unify(inv_unary, inv_binary, *batch_examples, iterations=iterations)
 
 
 def get_rule_tensors(
@@ -119,3 +121,31 @@ class TestUnification(tf.test.TestCase):
         res = batch_unify(*rule)  # (B, I, N, M)
         self.assert_all(res[0, 0, 0], tf.constant([0, 1.0, 0, 1.0]))
         self.assert_all(res[1, 0, 0], tf.constant([0, 0.0, 1.0, 0]))
+
+    def test_single_binary_rule(self):
+        """Single binary condition with multiple assignments."""
+        rule = get_rule_tensors(1, 2, ["i0n0left1"])
+        res = batch_unify(*rule)  # (B, I, N, M)
+        self.assert_all(res[0, 0, 0], tf.constant([1.0, 1.0, 1.0, 0]))
+        self.assert_all(res[0, 0, 1], tf.constant([0, 1.0, 1.0, 1.0]))
+
+    def test_two_iteration_unification(self):
+        """Two binary conditions in a chain require two iterations to resolve."""
+        rule = get_rule_tensors(1, 3, ["i0n0left1", "i0n1left2"])
+        res = batch_unify(*rule)  # (B, I, N, M)
+        # Here node 0 does not see the update from node 2, hence it is
+        # allowed to unify with node 3.
+        self.assert_all(res[0, 0, 0], tf.constant([1.0, 1.0, 1.0, 0]))
+        self.assert_all(res[0, 0, 1], tf.constant([0, 1.0, 1.0, 0]))
+        # This time, the information from right most node reaches node 0,
+        # and the unifications are restricted accordingly.
+        res = batch_unify(*rule, iterations=2)  # (B, I, N, M)
+        self.assert_all(res[0, 0, 0], tf.constant([1.0, 1.0, 0, 0]))
+        self.assert_all(res[0, 0, 1], tf.constant([0, 1.0, 1.0, 0]))
+
+    def test_extra_iterations_stability(self):
+        """Running extra iterations does not change unification values."""
+        rule = get_rule_tensors(1, 3, ["i0n0left1", "i0n1left2"])
+        res = batch_unify(*rule, iterations=4)  # (B, I, N, M)
+        self.assert_all(res[0, 0, 0], tf.constant([1.0, 1.0, 0, 0]))
+        self.assert_all(res[0, 0, 1], tf.constant([0, 1.0, 1.0, 0]))

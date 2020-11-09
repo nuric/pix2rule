@@ -37,5 +37,5 @@ def test(cline):
 def build(cline):
     """Build project code."""
     print("Loading summary.")
-    cline.run("wc -l **.py")
+    cline.run(r"find . -iname '*.py' -not -path '*/\.*' | xargs wc -l")
     print("Build complete.")
