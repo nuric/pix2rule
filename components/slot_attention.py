@@ -26,6 +26,7 @@ from typing import Tuple
 import numpy as np
 import tensorflow as tf
 import tensorflow.keras.layers as L
+from reportlib import report_tensor
 
 
 class SlotAttention(L.Layer):  # pylint: disable=too-many-instance-attributes
@@ -100,6 +101,7 @@ class SlotAttention(L.Layer):  # pylint: disable=too-many-instance-attributes
         )
 
         # Multiple rounds of attention.
+        attns = list()
         for _ in range(self.num_iterations):
             slots_prev = slots
             slots = self.norm_slots(slots)
@@ -112,6 +114,7 @@ class SlotAttention(L.Layer):  # pylint: disable=too-many-instance-attributes
             attn_logits = tf.keras.backend.batch_dot(keys, queries, axes=-1)
             attn = tf.nn.softmax(attn_logits, axis=-1)
             # `attn` has shape: [batch_size, num_inputs, num_slots].
+            attns.append(attn)
 
             # Weigted mean.
             attn += self.epsilon
@@ -123,7 +126,23 @@ class SlotAttention(L.Layer):  # pylint: disable=too-many-instance-attributes
             slots, _ = self.gru(updates, [slots_prev])
             slots += self.mlp(self.norm_mlp(slots))
 
+        attns = tf.stack(attns, axis=1)  # (B, iterations, num_inputs, num_slots)
+        report_tensor("slot_attention", attns)
         return slots
+
+    def get_config(self):
+        """Serialisable configuration dictionary."""
+        config = super().get_config()
+        config.update(
+            {
+                "num_iterations": self.num_iterations,
+                "num_slots": self.num_slots,
+                "slot_size": self.slot_size,
+                "mlp_hidden_size": self.mlp_hidden_size,
+                "epsilon": self.epsilon,
+            }
+        )
+        return config
 
 
 class SoftPositionEmbed(L.Layer):
@@ -137,6 +156,8 @@ class SoftPositionEmbed(L.Layer):
           resolution: Tuple of integers specifying width and height of grid.
         """
         super().__init__()
+        self.hidden_size = hidden_size
+        self.resolution = resolution
         self.dense = L.Dense(hidden_size, use_bias=True)
         self.grid = self.build_grid(resolution)
 
@@ -153,3 +174,14 @@ class SoftPositionEmbed(L.Layer):
 
     def call(self, inputs: tf.Tensor, **kwargs):
         return inputs + self.dense(self.grid)
+
+    def get_config(self):
+        """Serialisable configuration dictionary."""
+        config = super().get_config()
+        config.update(
+            {
+                "hidden_size": self.hidden_size,
+                "resolution": self.resolution,
+            }
+        )
+        return config
