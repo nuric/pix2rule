@@ -1,0 +1,8 @@
+{
+    "python.pythonPath": "/data/nuric/pix2rule/pix2rule_env/bin/python",
+    "python.formatting.provider": "black",
+    "editor.formatOnSave": true,
+    "python.testing.unittestEnabled": true,
+    "python.linting.mypyEnabled": true,
+    "python.linting.pylintEnabled": true,
+}
