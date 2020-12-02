@@ -2,6 +2,7 @@
 numpy
 pandas
 tensorflow
+tensorflow_probability
 # Tools
 jupyterlab
 mlflow

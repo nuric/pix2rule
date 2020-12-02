@@ -15,7 +15,7 @@ from . import relsgame_model
 # We expose a list of custom layers for saving and loading models
 custom_layers: Dict[str, type] = {
     l.__name__: l
-    for l in [rule_learner.SequencesRuleLearner, rule_learner.RelsgameRuleLearner]
+    for l in [rule_learner.SequencesRuleLearner, rule_learner.BaseRuleLearner]
 }
 # Merge into custom component layers
 custom_layers.update(components.custom_layers)

@@ -27,10 +27,11 @@ np.set_printoptions(suppress=True, precision=5, linewidth=180)
 # ---------------------------
 
 # Arguments
-parser = configlib.add_parser("UMLP options.")
-parser.add_argument("--experiment_name", help="Optional experiment name.")
+parser = configlib.add_parser("Pix2Rule options.")
 parser.add_argument(
-    "--max_invariants", default=4, type=int, help="Number of maximum invariants."
+    "--experiment_name",
+    default=datetime.datetime.now().strftime("%Y%m%d-%H%M%S"),
+    help="Optional experiment name, default current datetime.",
 )
 parser.add_argument(
     "--max_steps",
@@ -61,15 +62,9 @@ def train(run_name: str = None):
     # ---------------------------
     # Setup model
     model = models.build_model()
-    # ---------------------------
-    # Setup Callbacks
-    inv_selector = utils.callbacks.InvariantSelector(
-        dsets["train"], max_invariants=C["max_invariants"]
-    )
-    # ---
     # Pre-compile debug run
     if C["debug"]:
-        report = create_report(model, inv_selector.create_dataset())
+        report = create_report(model, dsets["train"])
         print("Debug report keys:", report.keys())
     model.compile(
         optimizer="adam",
@@ -82,33 +77,24 @@ def train(run_name: str = None):
     art_dir.mkdir(parents=True, exist_ok=True)
     logger.info("Local artifact dir is %s", str(art_dir))
     callbacks = [
-        inv_selector,
         tf.keras.callbacks.ModelCheckpoint(
             str(art_dir) + "/models/latest_model", monitor="loss"
         ),
         utils.callbacks.EarlyStopAtConvergence(C["converged_loss"]),
         utils.callbacks.TerminateOnNaN(),
-        utils.callbacks.Evaluator(dsets, inv_selector.create_dataset),
-        utils.callbacks.ArtifactSaver(dsets, art_dir, inv_selector.create_dataset),
+        utils.callbacks.Evaluator(dsets),
+        utils.callbacks.ArtifactSaver(dsets, art_dir),
     ]
     # ---------------------------
     # Training loop
     logger.info("Starting training.")
-    while True:
-        try:
-            model.fit(
-                inv_selector.create_dataset(),
-                epochs=C["max_steps"] // C["eval_every"],
-                callbacks=callbacks,
-                initial_epoch=inv_selector.last_epoch,
-                steps_per_epoch=C["eval_every"],
-                verbose=0,
-            )
-        except utils.exceptions.NewInvariantException:
-            logger.info("Resuming training with new invariants.")
-            # print("Invs:", inv_selector.inv_inputs, sep="\n")
-        else:
-            break
+    model.fit(
+        dsets["train"],
+        epochs=C["max_steps"] // C["eval_every"],
+        callbacks=callbacks,
+        steps_per_epoch=C["eval_every"],
+        verbose=0,
+    )
     # ---
     # Log post training artifacts
     logging.info("Training completed.")
@@ -127,19 +113,17 @@ def mlflow_train():
     if C["tracking_uri"]:
         mlflow.set_tracking_uri(C["tracking_uri"])
     logger.info("Tracking uri is %s", mlflow.get_tracking_uri())
-    if not C["experiment_name"]:
-        C["experiment_name"] = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    logger.info("Set experiment name %s", C["experiment_name"])
     mlflow.set_experiment(C["experiment_name"])
-    logger.info("Set experiment %s", C["experiment_name"])
     # ---
     # Check for past run, are we resuming?
-    logger.info("Configuration hash is %s", config_hash)
+    logger.info("Searching past run with configuration hash %s", config_hash)
     run_id = None
     past_runs = mlflow.search_runs(
         filter_string=f"tags.config_hash = '{config_hash}'", max_results=1
     )
     if not past_runs.empty:
-        # run_id = past_runs["run_id"][0]
+        # run_id = past_runs["run_id"][0] ***
         logger.info("Resuming run with id %s", run_id)
         raise NotImplementedError("Resuming runs in the same experiment.")
     # ---
@@ -165,7 +149,7 @@ if __name__ == "__main__":
     # ---------------------------
     # Store in global config object inside configlib
     CONFIG_HASH = configlib.parse()
-    print("Running with configuration hash {CONFIG_HASH}:")
+    print(f"Running with configuration hash {CONFIG_HASH}:")
     configlib.print_config()
     # ---------------------------
     mlflow_train()
