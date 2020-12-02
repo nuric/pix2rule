@@ -76,10 +76,22 @@ def train(run_name: str = None):
     art_dir = Path(C["experiment_name"]) / run_name
     art_dir.mkdir(parents=True, exist_ok=True)
     logger.info("Local artifact dir is %s", str(art_dir))
+    # ---
+    # Setup temperature scheduler callback
+    temperature_callback = utils.callbacks.ParamScheduler(
+        layer_name="object_selection",
+        param_name="temperature",
+        scheduler=tf.keras.optimizers.schedules.ExponentialDecay(
+            0.5, decay_steps=1, decay_rate=0.9
+        ),
+        min_value=0.01,
+    )
+    # ---
     callbacks = [
         tf.keras.callbacks.ModelCheckpoint(
             str(art_dir) + "/models/latest_model", monitor="loss"
         ),
+        temperature_callback,
         utils.callbacks.EarlyStopAtConvergence(C["converged_loss"]),
         utils.callbacks.TerminateOnNaN(),
         utils.callbacks.Evaluator(dsets),

@@ -139,6 +139,45 @@ class TerminateOnNaN(tf.keras.callbacks.Callback):
             mlflow.set_tag("result", "invalid")
 
 
+class ParamScheduler(tf.keras.callbacks.Callback):
+    """Schedule a change in model parameter."""
+
+    def __init__(
+        self,
+        layer_name: str,
+        param_name: str,
+        scheduler: tf.keras.optimizers.schedules.LearningRateSchedule,
+        min_value: float = 0,
+    ):
+        super().__init__()
+        self.layer_name = layer_name
+        self.param_name = param_name
+        self.scheduler = scheduler
+        self.min_value = min_value
+
+    def get_parameter(self) -> tf.Variable:
+        """Return a reference to the scheduled parameter."""
+        # Obtain reference to tf.Variable param
+        layer: tf.keras.layers.Layer = self.model.get_layer(self.layer_name)
+        param: tf.Variable = getattr(layer, self.param_name)
+        return param
+
+    def on_epoch_begin(self, epoch: int, logs: Dict[str, float] = None):
+        """Apply schedule on parameter."""
+        # Check if new value should be assigned
+        param = self.get_parameter()
+        new_value: tf.Tensor = self.scheduler(epoch)
+        if new_value >= self.min_value:
+            param.assign(new_value, read_value=False)
+
+    def on_epoch_end(self, epoch: int, logs: Dict[str, float] = None):
+        """Append latest param value to logs."""
+        # Append to log so other callbacks can see it / print it
+        param = self.get_parameter()
+        logs = logs or dict()
+        logs[self.layer_name + "/" + self.param_name] = param.numpy()
+
+
 class Evaluator(tf.keras.callbacks.Callback):
     """Evaluate model with multiple test datasets."""
 
