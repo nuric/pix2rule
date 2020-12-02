@@ -11,10 +11,16 @@ from .rule_learner import BaseRuleLearner
 class ObjectSelection(L.Layer):
     """Select a subset of objects based on object score."""
 
-    def __init__(self, num_select: int = 2, **kwargs):
+    def __init__(self, num_select: int = 2, initial_temperature: float = 0.5, **kwargs):
         super().__init__(**kwargs)
         self.num_select = num_select
+        self.initial_temperature = initial_temperature
         self.object_score = L.Dense(1)
+        self.temperature = self.add_weight(
+            name="temperature",
+            initializer=tf.keras.initializers.Constant(initial_temperature),
+            trainable=False,
+        )
 
     def call(self, inputs, **kwargs):
         """Perform forward pass."""
@@ -33,7 +39,7 @@ class ObjectSelection(L.Layer):
         last_select = object_scores
         for _ in range(self.num_select):
             sample = tfp.distributions.RelaxedOneHotCategorical(
-                0.2, logits=last_select
+                self.temperature, logits=last_select
             ).sample()  # (B, O)
             sample = tf.cast(sample, tf.float32)  # (B, O)
             atts.append(sample)
@@ -49,7 +55,12 @@ class ObjectSelection(L.Layer):
     def get_config(self):
         """Serialisable configuration dictionary."""
         config = super().get_config()
-        config.update({"num_select": self.num_select})
+        config.update(
+            {
+                "num_select": self.num_select,
+                "initial_temperature": self.initial_temperature,
+            }
+        )
         return config
 
 
