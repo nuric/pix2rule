@@ -7,7 +7,9 @@ import tensorflow as tf
 from reportlib import report_tensor
 
 
-class BaseRuleLearner(tf.keras.layers.Layer):
+class BaseRuleLearner(
+    tf.keras.layers.Layer
+):  # pylint: disable=too-many-instance-attributes
     """Base class for rule learning, handle predicates and unification."""
 
     def __init__(
