@@ -15,7 +15,10 @@ class ObjectSelection(L.Layer):
         super().__init__(**kwargs)
         self.num_select = num_select
         self.initial_temperature = initial_temperature
-        self.object_score = L.Dense(1)
+        # We use a higher starting bias value so that the score inversion is more stable
+        self.object_score = L.Dense(
+            1, bias_initializer=tf.keras.initializers.Constant(10)
+        )
         self.temperature = self.add_weight(
             name="temperature",
             initializer=tf.keras.initializers.Constant(initial_temperature),
