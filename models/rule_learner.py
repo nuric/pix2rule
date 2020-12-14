@@ -21,9 +21,8 @@ class BaseRuleLearner(
     ):
         super().__init__(**kwargs)
         self.max_invariants = max_invariants  # Upper bound on I
-        self.max_variables = (
-            max_variables  # Number of of variables in rules, 0 to match input
-        )
+        # Number of of variables in rules, 0 to match input
+        self.max_variables = max_variables
         self.num_labels = num_labels  # Number of labels / classes to predict
         self.perm_idxs = None  # Permutations indices
 
@@ -64,8 +63,8 @@ class BaseRuleLearner(
                 )
             )
         )  # (P, IL)
-        var_range = tf.repeat(
-            tf.range(num_variables)[None], perm_idxs.shape[0], axis=0
+        var_range = tf.broadcast_to(
+            tf.range(num_variables), tf.shape(perm_idxs)
         )  # (P, IL)
         # ---
         self.perm_unary_idxs = tf.concat(
@@ -100,9 +99,11 @@ class BaseRuleLearner(
         # to reduce the number of dot products to O(n^2) instead of O(n!)
         # (B, BL, E) x (I, IL, E) -> (B, I, IL, BL)
         unary_match = tf.einsum("ble,ike->bikl", inputs["unary_feats"], self.rule_unary)
+        batch_size = tf.shape(inputs["unary_feats"])[0]  # B
+        num_rules = tf.shape(self.rule_unary)[0]  # I
         batch_unary_idxs = tf.tile(
             self.perm_unary_idxs[None, None],
-            [tf.shape(inputs["unary_feats"])[0], tf.shape(self.rule_unary)[0], 1, 1, 1],
+            [batch_size, num_rules, 1, 1, 1],
         )  # (B, I, P, IL, 2)
         unary_perm_scores = tf.gather_nd(
             unary_match, batch_unary_idxs, batch_dims=2
@@ -118,8 +119,8 @@ class BaseRuleLearner(
         batch_binary_idxs = tf.tile(
             self.perm_binary_idxs[None, None],
             [
-                tf.shape(inputs["unary_feats"])[0],
-                tf.shape(self.rule_unary)[0],
+                batch_size,
+                num_rules,
                 1,
                 1,
                 1,
