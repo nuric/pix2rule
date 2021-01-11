@@ -7,6 +7,55 @@ import tensorflow as tf
 from reportlib import report_tensor
 
 
+class AndLayer(tf.keras.layers.Layer):
+    """Single layer that represents conjuction with permutation invariance."""
+
+    def __init__(
+        self,
+        num_conjucts: int = 4,
+        num_head_variables: int = 0,
+        num_total_variables: int = 2,
+        **kwargs
+    ):
+        super().__init__(**kwargs)
+        # If we take material implication, number of conjucts are the number of rules
+        self.num_conjucts = num_conjucts
+        # We use the following numbers to determine the structure of the rule
+        # e.g. p(X) <- q(X) is 1 head and total 1
+        assert (
+            num_head_variables >= 0
+        ), "Got negative number of head variables for conjuct."
+        assert (
+            num_total_variables >= 0
+        ), "Got negative number of total variables for conjuct."
+        self.num_head_variables = num_head_variables
+        self.num_total_variables = num_total_variables
+
+    def build(self, input_shape: Dict[str, tf.TensorShape]):
+        """Build layer weights."""
+        # input_shape {'nullary_preds': (B, P0), 'unary_preds': (B, N, P1),
+        #              'binary_preds': (B, N, N-1, P2)}
+        pass
+
+    def call(self, inputs: Dict[str, tf.Tensor], **kwargs):
+        """Perform forward pass of the model."""
+        # pylint: disable=too-many-locals
+        # inputs {'nullary_preds': (B, P0), 'unary_preds': (B, N, P1),
+        #         'binary_preds': (B, N, N-1, P2)}
+        # ---------------------------
+        # Compute unary scores
+        # We compute all pairwise combinations and then take permutations of them
+        # to reduce the number of dot products to O(n^2) instead of O(n!)
+        # (B, BL, E) x (I, IL, E) -> (B, I, IL, BL)
+        return inputs["nullary_preds"][:, :4]
+
+    def get_config(self):
+        """Serialisable configuration dictionary."""
+        config = super().get_config()
+        config.update({"num_conjucts": self.num_conjucts})
+        return config
+
+
 class BaseRuleLearner(
     tf.keras.layers.Layer
 ):  # pylint: disable=too-many-instance-attributes

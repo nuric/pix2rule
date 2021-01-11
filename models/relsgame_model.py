@@ -1,11 +1,13 @@
 """Rule learning model for relsgame dataset."""
+from typing import Dict
+import numpy as np
 import tensorflow as tf
 import tensorflow.keras.layers as L
 import tensorflow_probability as tfp
 
 from reportlib import report_tensor
 from components.relsgame_cnn import RelationsGameCNN
-from .rule_learner import BaseRuleLearner
+from .rule_learner import AndLayer
 
 
 class ObjectSelection(L.Layer):
@@ -70,52 +72,73 @@ class ObjectSelection(L.Layer):
 class RelsgameFeatures(L.Layer):
     """Relations game object features."""
 
-    def __init__(self, latent_size: int = 32, **kwargs):
+    def __init__(self, unary_preds: int = 4, binary_preds: int = 4, **kwargs):
         super().__init__(**kwargs)
-        self.latent_size = latent_size
-        self.unary_model = L.Dense(latent_size, name="unary_model")
-        self.binary_model = L.Dense(latent_size, name="binary_model")
-        # There are 4 tasks, we'll one hot encode them
+        self.unary_preds = unary_preds
+        self.binary_preds = binary_preds
+        self.unary_model = L.Dense(unary_preds, activation="tanh", name="unary_model")
+        self.binary_model = L.Dense(
+            binary_preds, activation="tanh", name="binary_model"
+        )
+        # There are 5 tasks, we'll one hot encode them
         self.num_tasks = 5
         self.task_embedding = L.Embedding(
             self.num_tasks,
-            latent_size,
+            self.num_tasks,
             mask_zero=False,
-            trainable=True,
+            trainable=False,
+            embeddings_initializer=tf.keras.initializers.constant(
+                tf.eye(self.num_tasks) * 2 - 1
+            ),
         )
 
-    def call(self, inputs, **kwargs):
+    def build(self, input_shape: Dict[str, tf.TensorShape]):
+        """Build layer weights."""
+        # input_shape {'objects': (B, num_objects N, embedding_size E), task_id: (B,)}
+        num_objects = input_shape["objects"][1]  # N
+        # The following captures all the non-diagonal indices representing p(X,Y)
+        # and omitting p(X,X). So every object compared to every other object
+        binary_idxs = np.stack(np.nonzero(1 - np.eye(num_objects))).T  # (O*(O-1), 2)
+        # pylint: disable=attribute-defined-outside-init
+        self.binary_idxs = np.reshape(
+            binary_idxs, (num_objects, num_objects - 1, 2)
+        )  # (O, O-1, 2)
+
+    def call(self, inputs: Dict[str, tf.Tensor], **kwargs):
         """Perform forward pass."""
-        # inputs {'objects': (B, num_objects O, embedding_size E), task_id: (B,)}
+        # inputs {'objects': (B, num_objects N, embedding_size E), task_id: (B,)}
+        # ---------------------------
+        # Compute nullary predicates
+        nullary_preds = self.task_embedding(inputs["task_id"])  # (B, P0)
         # ---------------------------
         # Compute unary features
-        unary_feats = self.unary_model(inputs["objects"])  # (B, O, E)
-        task_embed = self.task_embedding(inputs["task_id"])  # (B, E)
-        unary_feats = tf.concat([unary_feats, task_embed[:, None]], 1)  # (B, O+1, E)
+        unary_preds = self.unary_model(inputs["objects"])  # (B, O, P1)
         # ---------------------------
         # Compute binary features
-        arg1 = inputs["objects"][:, :, None]  # (B, O, 1, E)
-        arg2 = inputs["objects"][:, None]  # (B, 1, O, E)
+        arg1 = tf.gather(
+            inputs["objects"], self.binary_idxs[..., 0], axis=1
+        )  # (B, O, O-1, E)
+        arg2 = tf.gather(
+            inputs["objects"], self.binary_idxs[..., 1], axis=1
+        )  # (B, O, O-1, E)
         paired_objects = tf.concat(
             [arg1 + arg2, arg1 - arg2, arg1 * arg2], -1
-        )  # (B, O, O, 3E)
-        binary_feats = self.binary_model(paired_objects)  # (B, O, O, E)
-        # Mask out self relations p(X,X) = 0
-        binary_feats *= 1 - tf.eye(tf.shape(binary_feats)[1])[..., None]  # (B, O, O, E)
-        # ---
-        # Append empty task node which has no binary relations with other objects
-        binary_feats = tf.pad(
-            binary_feats, [[0, 0], [0, 1], [0, 1], [0, 0]], constant_values=0.0
-        )  # (B, O+1, O+1, E)
+        )  # (B, O, O-1, 3E)
+        binary_preds = self.binary_model(paired_objects)  # (B, O, O-1, E)
         # ---------------------------
-        return unary_feats, binary_feats
+        return {
+            "nullary_preds": nullary_preds,
+            "unary_preds": unary_preds,
+            "binary_preds": binary_preds,
+        }
 
     def get_config(self):
         """Serialisable configuration dictionary."""
         config = super().get_config()
         config.update(
             {
-                "latent_size": self.latent_size,
+                "unary_preds": self.unary_preds,
+                "binary_preds": self.binary_preds,
             }
         )
         return config
@@ -142,16 +165,12 @@ def build_model() -> tf.keras.Model:  # pylint: disable=too-many-locals
     # ---------------------------
     # Extract unary and binary features
     feat_ext = RelsgameFeatures()
-    unary_feats, binary_feats = feat_ext(
+    ground_facts = feat_ext(
         {"objects": selected_objects, "task_id": task_id}
-    )  # (B, N, P1), (B, N, N, P2)
+    )  # {'nullary_preds': (B, P0), 'unary_preds': (B, N, P1), 'binary_preds': (B, N, N-1, P2)}
     # ---------------------------
     # Perform rule learning and get predictions
-    combined = {
-        "unary_feats": unary_feats,
-        "binary_feats": binary_feats,
-    }
-    predictions = BaseRuleLearner()(combined)  # (B, S)
+    predictions = AndLayer()(ground_facts)  # (B, S)
     return tf.keras.Model(
         inputs=[image, task_id],
         outputs=predictions,
