@@ -82,15 +82,6 @@ class RelsgameFeatures(L.Layer):
         )
         # There are 5 tasks, we'll one hot encode them
         self.num_tasks = 5
-        self.task_embedding = L.Embedding(
-            self.num_tasks,
-            self.num_tasks,
-            mask_zero=False,
-            trainable=False,
-            embeddings_initializer=tf.keras.initializers.constant(
-                tf.eye(self.num_tasks) * 2 - 1
-            ),
-        )
 
     def build(self, input_shape: Dict[str, tf.TensorShape]):
         """Build layer weights."""
@@ -109,7 +100,8 @@ class RelsgameFeatures(L.Layer):
         # inputs {'objects': (B, num_objects N, embedding_size E), task_id: (B,)}
         # ---------------------------
         # Compute nullary predicates
-        nullary_preds = self.task_embedding(inputs["task_id"])  # (B, P0)
+        task_embed = tf.eye(self.num_tasks) * 2 - 1  # (task, task)
+        nullary_preds = tf.gather(task_embed, inputs["task_id"], axis=0)  # (B, P0)
         # ---------------------------
         # Compute unary features
         unary_preds = self.unary_model(inputs["objects"])  # (B, O, P1)

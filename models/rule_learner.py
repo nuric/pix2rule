@@ -8,26 +8,26 @@ from reportlib import report_tensor
 
 
 class AndLayer(tf.keras.layers.Layer):
-    """Single layer that represents conjuction with permutation invariance."""
+    """Single layer that represents conjunction with permutation invariance."""
 
     def __init__(
         self,
-        num_conjucts: int = 4,
+        num_conjuncts: int = 2,
         num_head_variables: int = 0,
         num_total_variables: int = 2,
-        **kwargs
+        **kwargs,
     ):
         super().__init__(**kwargs)
-        # If we take material implication, number of conjucts are the number of rules
-        self.num_conjucts = num_conjucts
+        # If we take material implication, number of conjuncts are the number of rules
+        self.num_conjuncts = num_conjuncts
         # We use the following numbers to determine the structure of the rule
         # e.g. p(X) <- q(X) is 1 head and total 1
         assert (
             num_head_variables >= 0
-        ), "Got negative number of head variables for conjuct."
+        ), "Got negative number of head variables for conjunct."
         assert (
             num_total_variables >= 0
-        ), "Got negative number of total variables for conjuct."
+        ), "Got negative number of total variables for conjunct."
         self.num_head_variables = num_head_variables
         self.num_total_variables = num_total_variables
 
@@ -35,7 +35,54 @@ class AndLayer(tf.keras.layers.Layer):
         """Build layer weights."""
         # input_shape {'nullary_preds': (B, P0), 'unary_preds': (B, N, P1),
         #              'binary_preds': (B, N, N-1, P2)}
-        pass
+        # ---------------------------
+        # The input is the flattened number of facts for the number of total variables
+        # this conjunction contains
+        # Flattened number of facts are the input
+        # P0 + V*P1 + V*(V-1)*P2
+        pred0, pred1, pred2 = (
+            input_shape["nullary_preds"][-1],
+            input_shape["unary_preds"][-1],
+            input_shape["binary_preds"][-1],
+        )
+        num_in = (
+            pred0
+            + self.num_total_variables * pred1
+            + self.num_total_variables * (self.num_total_variables - 1) * pred2
+        )
+        # ---
+        # pylint: disable=attribute-defined-outside-init
+        self.kernel = self.add_weight(
+            name="kernel",
+            shape=(num_in, self.num_conjuncts),
+            initializer=tf.keras.initializers.RandomNormal(mean=0.0, stddev=1.0),
+        )
+        # ---------------------------
+        # Compute permutation indices to gather later
+        # For K permutations it tells what indices V variables take
+        num_objects = input_shape["unary_preds"][1]  # N
+        assert (
+            self.num_total_variables <= num_objects
+        ), f"More variables {self.num_total_variables} than objects {num_objects}"
+        self.perm_idxs = np.array(
+            list(itertools.permutations(range(num_objects), self.num_total_variables))
+        )  # (K, V)
+        # ---
+        # Binary comparison indices for variables, XY XZ YX YZ ...
+        binary_idxs = np.stack(
+            np.nonzero(1 - np.eye(self.num_total_variables))
+        ).T  # (V*(V-1), 2)
+        binary_idxs = np.reshape(
+            binary_idxs, (self.num_total_variables, self.num_total_variables - 1, 2)
+        )  # (V, V-1, 2)
+        perm_bidxs = self.perm_idxs[:, binary_idxs]  # (K, V, V-1, 2)
+        # Due to omission of XX (the diagnoal) the indices on of second argument get shifted
+        index_shift_mask = (perm_bidxs[..., 1] > perm_bidxs[..., 0]).astype(
+            int
+        )  # (K, V, V-1)
+        self.perm_bidxs = np.stack(
+            [perm_bidxs[..., 0], perm_bidxs[..., 1] - index_shift_mask], axis=-1
+        )  # (K, V, V-1, 2)
 
     def call(self, inputs: Dict[str, tf.Tensor], **kwargs):
         """Perform forward pass of the model."""
@@ -43,16 +90,45 @@ class AndLayer(tf.keras.layers.Layer):
         # inputs {'nullary_preds': (B, P0), 'unary_preds': (B, N, P1),
         #         'binary_preds': (B, N, N-1, P2)}
         # ---------------------------
-        # Compute unary scores
-        # We compute all pairwise combinations and then take permutations of them
-        # to reduce the number of dot products to O(n^2) instead of O(n!)
-        # (B, BL, E) x (I, IL, E) -> (B, I, IL, BL)
-        return inputs["nullary_preds"][:, :4]
+        # Setup permutations
+        # Conjunctions in logic are permutation invariant A and B = B and A
+        # so we take naive approach of evaluating all permutations since there is
+        # background knowledge to restrict the search space.
+        perm_nullary = tf.repeat(
+            inputs["nullary_preds"][:, None], self.perm_idxs.shape[0], axis=1
+        )  # (B, K, P0)
+        perm_unary = tf.gather(
+            inputs["unary_preds"], self.perm_idxs, axis=1
+        )  # (B, K, V, P1)
+        repeat_bidxs = tf.repeat(
+            self.perm_bidxs[None], tf.shape(inputs["binary_preds"])[0], axis=0
+        )  # (B, K, V, V-1, 2)
+        perm_binary = tf.gather_nd(
+            inputs["binary_preds"], repeat_bidxs, batch_dims=1
+        )  # (B, K, V, V-1, P2)
+        # ---------------------------
+        # Compute weighted conjunct truth values
+        flattened_in = [
+            tf.reshape(x, tf.concat([tf.shape(x)[:2], [-1]], 0))
+            for x in (perm_unary, perm_binary)
+        ]
+        in_tensor: tf.Tensor = tf.concat(
+            [perm_nullary] + flattened_in, -1
+        )  # (B, K, P0 + V*P1 + V*(V-1)*P2)
+        report_tensor("rule_kernel", self.kernel)
+        weighted_truth = (
+            in_tensor[..., None] * self.kernel
+        )  # (B, K, P0 + V*P1 + V*(V-1)*P2, R)
+        # ---------------------------
+        # Reduce conjunction
+        conjuncts = tf.reduce_min(tf.reduce_max(weighted_truth, 2), 1)  # (B, R)
+        return conjuncts
+        # return inputs["nullary_preds"][:, :4]
 
     def get_config(self):
         """Serialisable configuration dictionary."""
         config = super().get_config()
-        config.update({"num_conjucts": self.num_conjucts})
+        config.update({"num_conjuncts": self.num_conjuncts})
         return config
 
 
@@ -66,7 +142,7 @@ class BaseRuleLearner(
         max_invariants: int = 4,
         max_variables: int = 0,
         num_labels: int = 4,
-        **kwargs
+        **kwargs,
     ):
         super().__init__(**kwargs)
         self.max_invariants = max_invariants  # Upper bound on I

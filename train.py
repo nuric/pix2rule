@@ -68,9 +68,10 @@ def train(run_name: str = None):
         print("Debug report keys:", report.keys())
     model.compile(
         optimizer="adam",
-        loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False),
+        loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
         metrics=[tf.keras.metrics.SparseCategoricalAccuracy(name="acc")],
     )
+    model.summary()
     # ---
     run_name = run_name or utils.hashing.dict_hash(C)
     art_dir = Path(C["experiment_name"]) / run_name
@@ -88,9 +89,9 @@ def train(run_name: str = None):
     )
     # ---
     callbacks = [
-        tf.keras.callbacks.ModelCheckpoint(
-            str(art_dir) + "/models/latest_model", monitor="loss"
-        ),
+        # tf.keras.callbacks.ModelCheckpoint(
+        #     str(art_dir) + "/models/latest_model", monitor="loss"
+        # ),
         temperature_callback,
         utils.callbacks.EarlyStopAtConvergence(C["converged_loss"]),
         utils.callbacks.TerminateOnNaN(),
