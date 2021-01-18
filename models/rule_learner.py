@@ -56,6 +56,7 @@ class AndLayer(tf.keras.layers.Layer):
             name="kernel",
             shape=(num_in, self.num_conjuncts),
             initializer=tf.keras.initializers.RandomNormal(mean=0.0, stddev=1.0),
+            regularizer=tf.keras.regularizers.L1(l1=0.01),
         )
         # ---------------------------
         # Compute permutation indices to gather later
@@ -115,13 +116,14 @@ class AndLayer(tf.keras.layers.Layer):
         in_tensor: tf.Tensor = tf.concat(
             [perm_nullary] + flattened_in, -1
         )  # (B, K, P0 + V*P1 + V*(V-1)*P2)
+        report_tensor("in_tensor", in_tensor)
         report_tensor("rule_kernel", self.kernel)
         weighted_truth = (
             in_tensor[..., None] * self.kernel
         )  # (B, K, P0 + V*P1 + V*(V-1)*P2, R)
         # ---------------------------
         # Reduce conjunction
-        conjuncts = tf.reduce_min(tf.reduce_max(weighted_truth, 2), 1)  # (B, R)
+        conjuncts = tf.reduce_max(tf.reduce_min(weighted_truth, 2), 1)  # (B, R)
         return conjuncts
         # return inputs["nullary_preds"][:, :4]
 
