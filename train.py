@@ -94,7 +94,7 @@ def train(run_name: str = None):
         # ),
         temperature_callback,
         tf.keras.callbacks.EarlyStopping(
-            monitor="train_acc", min_delta=0.01, patience=5
+            monitor="train_acc", min_delta=0.01, patience=5, verbose=1
         ),
         # utils.callbacks.EarlyStopAtConvergence(C["converged_loss"]),
         utils.callbacks.TerminateOnNaN(),

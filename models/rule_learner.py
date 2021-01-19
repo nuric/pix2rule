@@ -117,9 +117,10 @@ class AndLayer(tf.keras.layers.Layer):
             [perm_nullary] + flattened_in, -1
         )  # (B, K, P0 + V*P1 + V*(V-1)*P2)
         report_tensor("in_tensor", in_tensor)
-        report_tensor("rule_kernel", self.kernel)
-        weighted_truth = (
-            in_tensor[..., None] * self.kernel
+        kernel = tf.nn.tanh(self.kernel)  # (IN, R)
+        report_tensor("rule_kernel", kernel)
+        weighted_truth = in_tensor[..., None] * kernel + (
+            1 - tf.square(kernel)
         )  # (B, K, P0 + V*P1 + V*(V-1)*P2, R)
         # ---------------------------
         # Reduce conjunction
