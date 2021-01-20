@@ -54,9 +54,9 @@ class AndLayer(tf.keras.layers.Layer):
         # pylint: disable=attribute-defined-outside-init
         self.kernel = self.add_weight(
             name="kernel",
-            shape=(num_in, self.num_conjuncts),
-            initializer=tf.keras.initializers.RandomNormal(mean=0.0, stddev=1.0),
-            regularizer=tf.keras.regularizers.L1(l1=0.01),
+            shape=(3, num_in, self.num_conjuncts),
+            initializer=tf.keras.initializers.RandomNormal(mean=0.0, stddev=0.1),
+            # regularizer=tf.keras.regularizers.L1(l1=0.01),
         )
         # ---------------------------
         # Compute permutation indices to gather later
@@ -117,15 +117,22 @@ class AndLayer(tf.keras.layers.Layer):
             [perm_nullary] + flattened_in, -1
         )  # (B, K, P0 + V*P1 + V*(V-1)*P2)
         report_tensor("in_tensor", in_tensor)
-        kernel = tf.nn.tanh(self.kernel)  # (IN, R)
+        kernel = tf.nn.softmax(self.kernel, axis=0)  # (3, IN, R)
+        self.add_loss(
+            0.01 * tf.reduce_mean(tf.keras.losses.KLD([0, 0, 1], tf.transpose(kernel)))
+        )
         report_tensor("rule_kernel", kernel)
-        weighted_truth = in_tensor[..., None] * kernel + (
-            1 - tf.square(kernel)
-        )  # (B, K, P0 + V*P1 + V*(V-1)*P2, R)
+        in_tensor = tf.expand_dims(in_tensor, -1)  # (B, K, IN, 1)
+        weighted_truth = (
+            in_tensor * kernel[0] + (1 - in_tensor) * kernel[1] + kernel[2]
+        )  # (B, K, IN, R)
         # ---------------------------
         # Reduce conjunction
         conjuncts = tf.reduce_max(tf.reduce_min(weighted_truth, 2), 1)  # (B, R)
-        return conjuncts
+        slope = 20
+        logits = conjuncts * slope - slope / 2
+        # logits = -tf.math.log(1 / (conjuncts) - 1)  # (B, R)
+        return logits
         # return inputs["nullary_preds"][:, :4]
 
     def get_config(self):

@@ -76,9 +76,11 @@ class RelsgameFeatures(L.Layer):
         super().__init__(**kwargs)
         self.unary_preds = unary_preds
         self.binary_preds = binary_preds
-        self.unary_model = L.Dense(unary_preds, activation="tanh", name="unary_model")
+        self.unary_model = L.Dense(
+            unary_preds, activation="sigmoid", name="unary_model"
+        )
         self.binary_model = L.Dense(
-            binary_preds, activation="tanh", name="binary_model"
+            binary_preds, activation="sigmoid", name="binary_model"
         )
         # There are 5 tasks, we'll one hot encode them
         self.num_tasks = 5
@@ -100,7 +102,7 @@ class RelsgameFeatures(L.Layer):
         # inputs {'objects': (B, num_objects N, embedding_size E), task_id: (B,)}
         # ---------------------------
         # Compute nullary predicates
-        task_embed = tf.eye(self.num_tasks) * 2 - 1  # (task, task)
+        task_embed = tf.eye(self.num_tasks)  # (task, task)
         nullary_preds = tf.gather(task_embed, inputs["task_id"], axis=0)  # (B, P0)
         # ---------------------------
         # Compute unary features
@@ -113,9 +115,7 @@ class RelsgameFeatures(L.Layer):
         arg2 = tf.gather(
             inputs["objects"], self.binary_idxs[..., 1], axis=1
         )  # (B, O, O-1, E)
-        paired_objects = tf.concat(
-            [arg1 + arg2, arg1 - arg2, arg1 * arg2], -1
-        )  # (B, O, O-1, 3E)
+        paired_objects = arg1 - arg2  # (B, O, O-1, E)
         binary_preds = self.binary_model(paired_objects)  # (B, O, O-1, E)
         # ---------------------------
         return {

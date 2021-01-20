@@ -212,6 +212,8 @@ class Evaluator(tf.keras.callbacks.Callback):
             epoch,
             " ".join([k + " " + "{:.3f}".format(v) for k, v in report.items()]),
         )
+        # Add extra metrics back to logs so other callbacks can see it.
+        logs.update(report)
         mlflow.log_metrics(report, step=epoch)
 
 

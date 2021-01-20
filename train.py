@@ -93,12 +93,12 @@ def train(run_name: str = None):
         #     str(art_dir) + "/models/latest_model", monitor="loss"
         # ),
         temperature_callback,
-        tf.keras.callbacks.EarlyStopping(
-            monitor="train_acc", min_delta=0.01, patience=5, verbose=1
-        ),
         # utils.callbacks.EarlyStopAtConvergence(C["converged_loss"]),
         utils.callbacks.TerminateOnNaN(),
         utils.callbacks.Evaluator(dsets),
+        # tf.keras.callbacks.EarlyStopping(
+        #     monitor="train_loss", min_delta=0.01, patience=10, verbose=1
+        # ),
         utils.callbacks.ArtifactSaver(dsets, art_dir),
     ]
     # ---------------------------
