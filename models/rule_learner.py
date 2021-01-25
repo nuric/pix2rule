@@ -1,5 +1,5 @@
 """Differentiable rule learning component."""
-from typing import Dict
+from typing import Dict, List
 import itertools
 import numpy as np
 import tensorflow as tf
@@ -12,24 +12,26 @@ class AndLayer(tf.keras.layers.Layer):
 
     def __init__(
         self,
-        num_conjuncts: int = 2,
-        num_head_variables: int = 0,
+        arities: List[int] = None,
         num_total_variables: int = 2,
+        merge: bool = True,
         **kwargs,
     ):
         super().__init__(**kwargs)
         # If we take material implication, number of conjuncts are the number of rules
-        self.num_conjuncts = num_conjuncts
+        # Here we define the arity of these rules
+        self.arities = arities or [0]
         # We use the following numbers to determine the structure of the rule
         # e.g. p(X) <- q(X) is 1 head and total 1
         assert (
-            num_head_variables >= 0
-        ), "Got negative number of head variables for conjunct."
+            min(self.arities) >= 0 and max(self.arities) <= 2
+        ), "Arity of rules needs to be from 0 to 2."
+        assert np.all(np.sort(arities) == arities), "Arity list needs to be sorted."
         assert (
             num_total_variables >= 0
         ), "Got negative number of total variables for conjunct."
-        self.num_head_variables = num_head_variables
         self.num_total_variables = num_total_variables
+        self.merge = merge  # Tells if we should merge layer output with inputs
 
     def build(self, input_shape: Dict[str, tf.TensorShape]):
         """Build layer weights."""
@@ -54,7 +56,7 @@ class AndLayer(tf.keras.layers.Layer):
         # pylint: disable=attribute-defined-outside-init
         self.kernel = self.add_weight(
             name="kernel",
-            shape=(3, num_in, self.num_conjuncts),
+            shape=(3, num_in, len(self.arities)),
             initializer=tf.keras.initializers.RandomNormal(mean=0.0, stddev=0.1),
             # regularizer=tf.keras.regularizers.L1(l1=0.01),
         )
@@ -123,22 +125,57 @@ class AndLayer(tf.keras.layers.Layer):
         )
         report_tensor("rule_kernel", kernel)
         in_tensor = tf.expand_dims(in_tensor, -1)  # (B, K, IN, 1)
-        weighted_truth = (
+        rule_eval = (
             in_tensor * kernel[0] + (1 - in_tensor) * kernel[1] + kernel[2]
         )  # (B, K, IN, R)
         # ---------------------------
         # Reduce conjunction
-        conjuncts = tf.reduce_max(tf.reduce_min(weighted_truth, 2), 1)  # (B, R)
+        # We will reshape and reduce according to the arity of these conjuncts
+        num_objects = tf.shape(inputs["unary_preds"])[1:2]  # [N]
+        eval_shape = tf.shape(rule_eval)  # [B, K, IN, R]
+        rule_shape = tf.concat(
+            [eval_shape[:1], num_objects, num_objects - 1, eval_shape[2:]], 0
+        )
+        conjuncts = tf.reshape(rule_eval, rule_shape)  # (B, N, N-1, IN, R)
+        # ---
+        # AND operation
+        conjuncts = tf.reduce_min(conjuncts, -2)  # (B, N, N-1, R)
+        # ---
+        # OR operation if applicable
+        try:
+            unary_index = self.arities.index(1)
+        except ValueError:
+            unary_index = 0
+        try:
+            binary_index = self.arities.index(2)
+        except ValueError:
+            binary_index = unary_index
+        # ---
+        nullary_rules = conjuncts[..., :unary_index]  # (B, N, N-1, R0)
+        nullary_rules = tf.reduce_max(nullary_rules, [1, 2])  # (B, R0)
+        unary_rules = conjuncts[..., unary_index:binary_index]  # (B, N, N-1, R1)
+        unary_rules = tf.reduce_max(unary_rules, 2)  # (B, N, R0)
+        binary_rules = conjuncts[..., binary_index:]  # (B, N, N-1, R2)
+        outputs = {
+            "nullary_preds": nullary_rules,
+            "unary_preds": unary_rules,
+            "binary_preds": binary_rules,
+        }
+        # ---------------------------
+        # Merge or compute return values
+        if self.merge:
+            for k in inputs.keys():
+                inputs[k] = tf.concat([inputs[k], outputs[k]], -1)
+            return inputs  # (B, ..., P_ + R)
+        # Convert back to logits if predicting
+        # logits = -tf.math.log(1 / (conjuncts) - 1)  # (B, ..., R)
         slope = 20
-        logits = conjuncts * slope - slope / 2
-        # logits = -tf.math.log(1 / (conjuncts) - 1)  # (B, R)
+        logits = {k: v * slope - slope / 2 for k, v in outputs.items()}
         return logits
-        # return inputs["nullary_preds"][:, :4]
 
     def get_config(self):
         """Serialisable configuration dictionary."""
         config = super().get_config()
-        config.update({"num_conjuncts": self.num_conjuncts})
         return config
 
 
