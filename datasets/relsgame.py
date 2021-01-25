@@ -97,9 +97,13 @@ def create_compressed_files():
     logger.info("Found %i relsgame data files.", len(dfiles))
     # ---------------------------
     # Curate the files into a single dataset
+    dataset_types = [
+        fn.split(".")[0].split("_")[-1] for fn in dfiles
+    ]  # [pentos, hexos, ...]
+    logger.info("Compressing dataset types: %s", dataset_types)
     all_arrs: Dict[str, Dict[str, List[np.array]]] = {
         "test_" + k: {"images": list(), "task_ids": list(), "labels": list()}
-        for k in all_types
+        for k in dataset_types
     }
     all_arrs["train"] = {"images": list(), "task_ids": list(), "labels": list()}
     logger.info("Loading relsgame data npz files.")
