@@ -43,6 +43,9 @@ parser.add_argument(
 parser.add_argument(
     "--relsgame_batch_size", default=64, type=int, help="Data batch size."
 )
+parser.add_argument(
+    "--relsgame_one_hot_labels", action="store_true", help="One-hot encode labels."
+)
 
 
 def get_file(fname: str) -> str:
@@ -168,6 +171,9 @@ def load_data() -> Dict[str, tf.data.Dataset]:
     }  # [test_stripes, ...]
     dsetnames.add("train")
     # ---------------------------
+    # Compute max labels for one-hot encoding
+    max_label = max([v.max() for k, v in dnpz.items() if k.endswith("labels")])
+    # ---------------------------
     # Curate datasets
     dsets: Dict[str, tf.data.Dataset] = dict()
     for dname in dsetnames:
@@ -177,6 +183,8 @@ def load_data() -> Dict[str, tf.data.Dataset]:
         # we expand types for tensorflow
         task_ids = dnpz[dname + "_task_ids"][ridxs].astype(np.int32)
         labels = dnpz[dname + "_labels"][ridxs].astype(np.int32)
+        if C["relsgame_one_hot_labels"]:
+            labels = np.eye(max_label + 1, dtype=np.int32)[labels]
         tfdata = tf.data.Dataset.from_tensor_slices(
             ({"image": imgs, "task_id": task_ids}, labels)
         )
