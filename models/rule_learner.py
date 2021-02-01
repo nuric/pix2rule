@@ -14,7 +14,7 @@ class AndLayer(tf.keras.layers.Layer):
         self,
         arities: List[int] = None,
         num_total_variables: int = 2,
-        merge: bool = True,
+        residiual: bool = True,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -26,12 +26,14 @@ class AndLayer(tf.keras.layers.Layer):
         assert (
             min(self.arities) >= 0 and max(self.arities) <= 2
         ), "Arity of rules needs to be from 0 to 2."
-        assert np.all(np.sort(arities) == arities), "Arity list needs to be sorted."
+        assert np.all(
+            np.sort(self.arities) == self.arities
+        ), "Arity list needs to be sorted."
         assert (
             num_total_variables >= 0
         ), "Got negative number of total variables for conjunct."
         self.num_total_variables = num_total_variables
-        self.merge = merge  # Tells if we should merge layer output with inputs
+        self.residual = residiual  # Tells if we should merge layer output with inputs
 
     def build(self, input_shape: Dict[str, tf.TensorShape]):
         """Build layer weights."""
@@ -120,9 +122,11 @@ class AndLayer(tf.keras.layers.Layer):
         )  # (B, K, P0 + V*P1 + V*(V-1)*P2)
         report_tensor("in_tensor", in_tensor)
         kernel = tf.nn.softmax(self.kernel, axis=0)  # (3, IN, R)
-        self.add_loss(
-            0.01 * tf.reduce_mean(tf.keras.losses.KLD([0, 0, 1], tf.transpose(kernel)))
-        )
+        entropy = -1 * tf.reduce_sum(kernel * tf.math.log(kernel), axis=0)  # (IN, R)
+        self.add_loss(0.001 * tf.reduce_mean(entropy))
+        # self.add_loss(
+        #     0.001 * tf.reduce_mean(tf.keras.losses.KLD([0, 0, 1], tf.transpose(kernel)))
+        # )
         report_tensor("rule_kernel", kernel)
         in_tensor = tf.expand_dims(in_tensor, -1)  # (B, K, IN, 1)
         rule_eval = (
@@ -143,18 +147,18 @@ class AndLayer(tf.keras.layers.Layer):
         # ---
         # OR operation if applicable
         try:
-            unary_index = self.arities.index(1)
-        except ValueError:
-            unary_index = 0
-        try:
             binary_index = self.arities.index(2)
         except ValueError:
-            binary_index = unary_index
+            binary_index = len(self.arities)
+        try:
+            unary_index = self.arities.index(1)
+        except ValueError:
+            unary_index = binary_index
         # ---
         nullary_rules = conjuncts[..., :unary_index]  # (B, N, N-1, R0)
         nullary_rules = tf.reduce_max(nullary_rules, [1, 2])  # (B, R0)
         unary_rules = conjuncts[..., unary_index:binary_index]  # (B, N, N-1, R1)
-        unary_rules = tf.reduce_max(unary_rules, 2)  # (B, N, R0)
+        unary_rules = tf.reduce_max(unary_rules, 2)  # (B, N, R1)
         binary_rules = conjuncts[..., binary_index:]  # (B, N, N-1, R2)
         outputs = {
             "nullary_preds": nullary_rules,
@@ -163,15 +167,16 @@ class AndLayer(tf.keras.layers.Layer):
         }
         # ---------------------------
         # Merge or compute return values
-        if self.merge:
+        if self.residual:
             for k in inputs.keys():
                 inputs[k] = tf.concat([inputs[k], outputs[k]], -1)
             return inputs  # (B, ..., P_ + R)
         # Convert back to logits if predicting
         # logits = -tf.math.log(1 / (conjuncts) - 1)  # (B, ..., R)
-        slope = 20
-        logits = {k: v * slope - slope / 2 for k, v in outputs.items()}
-        return logits
+        return outputs
+        # slope = 20
+        # logits = {k: v * slope - slope / 2 for k, v in outputs.items()}
+        # return logits
 
     def get_config(self):
         """Serialisable configuration dictionary."""
