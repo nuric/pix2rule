@@ -4,8 +4,9 @@ import numpy as np
 import tensorflow as tf
 import tensorflow.keras.layers as L
 
+from reportlib import ReportLayer
 from components.relsgame_cnn import RelationsGameCNN
-from components.object_selection import ObjectSelection
+from components.object_selection import RelaxedObjectSelection
 from .rule_learner import AndLayer
 
 
@@ -89,20 +90,31 @@ def build_model() -> tf.keras.Model:  # pylint: disable=too-many-locals
     # raw_objects = Shuffle()(raw_objects)  # (B, O, E)
     # ---------------------------
     # Select a subset of objects
-    obj_selector = ObjectSelection()
+    obj_selector = RelaxedObjectSelection()
     # obj_selector = SlotAttention(
     # num_iterations=3, num_slots=3, slot_size=32, mlp_hidden_size=32
     # )
-    selected_objects = obj_selector(raw_objects)  # (B, N, E)
+    selected_objects = obj_selector(raw_objects)
+    # {'object_scores': (B, N), 'object_atts': (B, N, O), 'objects': (B, N, E)}
+    selected_objects = ReportLayer()(selected_objects)
     # ---------------------------
     # Extract unary and binary features
     feat_ext = RelsgameFeatures()
     ground_facts = feat_ext(
-        {"objects": selected_objects, "task_id": task_id}
+        {"objects": selected_objects["objects"], "task_id": task_id}
     )  # {'nullary_preds': (B, P0), 'unary_preds': (B, N, P1), 'binary_preds': (B, N, N-1, P2)}
     # ---------------------------
     # Perform rule learning and get predictions
-    predictions = AndLayer()(ground_facts)  # (B, S)
+    ground_facts = AndLayer(arities=list(np.repeat([0, 1, 2], 3)), residiual=True)(
+        ground_facts
+    )  # {'nullary_preds': ..., 'unary_preds': ..., 'binary_preds': ...}
+    ground_facts = AndLayer(arities=list(np.repeat([0, 1, 2], 3)), residiual=True)(
+        ground_facts
+    )  # {'nullary_preds': ..., 'unary_preds': ..., 'binary_preds': ...}
+    predictions = AndLayer(arities=[0, 0, 0, 0], residiual=False)(
+        ground_facts
+    )  # {'nullary_preds': ..., 'unary_preds': ..., 'binary_preds': ...}
+    predictions = predictions["nullary_preds"]  # (B, S)
     return tf.keras.Model(
         inputs=[image, task_id],
         outputs=predictions,

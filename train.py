@@ -68,8 +68,10 @@ def train(run_name: str = None):
         print("Debug report keys:", report.keys())
     model.compile(
         optimizer="adam",
-        loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-        metrics=[tf.keras.metrics.SparseCategoricalAccuracy(name="acc")],
+        # loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+        loss=tf.keras.losses.BinaryCrossentropy(from_logits=False),
+        # metrics=[tf.keras.metrics.SparseCategoricalAccuracy(name="acc")],
+        metrics=[tf.keras.metrics.CategoricalAccuracy(name="acc")],
     )
     model.summary()
     # ---
@@ -80,7 +82,7 @@ def train(run_name: str = None):
     # ---
     # Setup temperature scheduler callback
     temperature_callback = utils.callbacks.ParamScheduler(
-        layer_name="object_selection",
+        layer_name="relaxed_object_selection",
         param_name="temperature",
         scheduler=tf.keras.optimizers.schedules.ExponentialDecay(
             0.5, decay_steps=1, decay_rate=0.9

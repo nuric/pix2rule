@@ -36,3 +36,13 @@ def report_break():
     """Setup reporting breakpoint."""
     if _report.get("debug", False):
         pdb.set_trace()
+
+
+class ReportLayer(tf.keras.layers.Layer):
+    """Reporting layer for logging tensors."""
+
+    def call(self, inputs: Dict[str, tf.Tensor], **kwargs):
+        """Report and return every tensor passing through."""
+        for key, tensor in inputs.items():
+            report_tensor(key, tensor)
+        return inputs
