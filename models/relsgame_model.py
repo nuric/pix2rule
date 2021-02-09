@@ -4,7 +4,7 @@ import numpy as np
 import tensorflow as tf
 import tensorflow.keras.layers as L
 
-from reportlib import ReportLayer
+from reportlib import ReportLayer, report_tensor
 from components.relsgame_cnn import RelationsGameCNN
 from components.object_selection import RelaxedObjectSelection
 from .rule_learner import AndLayer
@@ -37,6 +37,12 @@ class RelsgameFeatures(L.Layer):
         self.binary_idxs = np.reshape(
             binary_idxs, (num_objects, num_objects - 1, 2)
         )  # (O, O-1, 2)
+        self.reconstruct_model = tf.keras.Sequential(
+            layers=[
+                L.Dense(32, activation="relu", input_shape=(21,)),
+                L.Dense(21, activation="sigmoid"),
+            ]
+        )
 
     def call(self, inputs: Dict[str, tf.Tensor], **kwargs):
         """Perform forward pass."""
@@ -58,6 +64,28 @@ class RelsgameFeatures(L.Layer):
         )  # (B, O, O-1, E)
         paired_objects = arg1 - arg2  # (B, O, O-1, E)
         binary_preds = self.binary_model(paired_objects)  # (B, O, O-1, P2)
+        # ---------------------------
+        # Handle unsupervised reconstruction
+        flatten_shape = tf.stack([tf.shape(unary_preds)[0], -1])  # [B, -1]
+        flattened_in = tf.concat(
+            [
+                nullary_preds,
+                tf.reshape(unary_preds, flatten_shape),
+                tf.reshape(binary_preds, flatten_shape),
+            ],
+            -1,
+        )  # (B, P0+O*P1+O*(O-1)*P2)
+        random_mask = tf.cast(
+            tf.random.uniform(tf.shape(flattened_in), dtype=tf.float32) > 0.1,
+            tf.float32,
+        )  # (B, ...)
+        reconstruct = self.reconstruct_model(flattened_in * random_mask)  # (B, ...)
+        report_tensor("features_in", flattened_in)
+        report_tensor("features_reconstruct", reconstruct)
+        report_tensor("features_mask", random_mask)
+        self.add_loss(
+            0.1 * tf.reduce_mean(tf.keras.losses.MSE(flattened_in, reconstruct))
+        )
         # ---------------------------
         return {
             "nullary_preds": nullary_preds,
