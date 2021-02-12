@@ -82,10 +82,16 @@ def train(run_name: str = None):
     # ---
     # Setup temperature scheduler callback
     temperature_callback = utils.callbacks.ParamScheduler(
-        layer_name="relaxed_object_selection",
-        param_name="temperature",
+        layer_params=[("relaxed_object_selection", "temperature")],
         scheduler=tf.keras.optimizers.schedules.ExponentialDecay(
             0.5, decay_steps=1, decay_rate=0.9
+        ),
+        min_value=0.01,
+    )
+    temp_anneal = utils.callbacks.ParamScheduler(
+        layer_params=[("and_layer", "temperature")],
+        scheduler=tf.keras.optimizers.schedules.ExponentialDecay(
+            2.0, decay_steps=10, decay_rate=0.9
         ),
         min_value=0.01,
     )
@@ -95,6 +101,7 @@ def train(run_name: str = None):
         #     str(art_dir) + "/models/latest_model", monitor="loss"
         # ),
         temperature_callback,
+        temp_anneal,
         # utils.callbacks.EarlyStopAtConvergence(C["converged_loss"]),
         utils.callbacks.TerminateOnNaN(),
         utils.callbacks.Evaluator(dsets),
