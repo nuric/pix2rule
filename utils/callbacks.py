@@ -1,6 +1,5 @@
 """Custom training utility callbacks."""
-from typing import List, Dict, Callable, Iterator, Tuple
-import re
+from typing import List, Dict, Callable, Tuple
 import shutil
 from pathlib import Path
 import time
@@ -145,41 +144,38 @@ class ParamScheduler(tf.keras.callbacks.Callback):
 
     def __init__(
         self,
-        layer_name_regex: str,
-        param_name: str,
+        layer_params: List[Tuple[str, str]],
         scheduler: tf.keras.optimizers.schedules.LearningRateSchedule,
-        min_value: float = 0,
+        min_value: float = None,
     ):
         super().__init__()
-        self.layer_name_regex = layer_name_regex
-        self.layer_name_pattern = re.compile(layer_name_regex)
-        self.param_name = param_name
+        self.layer_params = layer_params
         self.scheduler = scheduler
         self.min_value = min_value
 
-    def get_parameters(self) -> Iterator[Tuple[str, tf.Variable]]:
+    def get_parameter(self, layer_name: str, param_name: str) -> tf.Variable:
         """Return a reference to the scheduled parameter."""
         # Obtain reference to tf.Variable param
-        layer: tf.keras.layers.Layer
-        for layer in self.model.layers:
-            if self.layer_name_pattern.match(layer.name):
-                param: tf.Variable = getattr(layer, self.param_name)
-                yield layer.name, param
+        layer: tf.keras.layers.Layer = self.model.get_layer(layer_name)
+        param: tf.Variable = getattr(layer, param_name)
+        return param
 
     def on_epoch_begin(self, epoch: int, logs: Dict[str, float] = None):
         """Apply schedule on parameter."""
         # Check if new value should be assigned
-        for _, param in self.get_parameters():
+        for layer_name, param_name in self.layer_params:
+            param = self.get_parameter(layer_name, param_name)
             new_value: tf.Tensor = self.scheduler(epoch)
-            if new_value >= self.min_value:
+            if self.min_value is None or new_value >= self.min_value:
                 param.assign(new_value, read_value=False)
 
     def on_epoch_end(self, epoch: int, logs: Dict[str, float] = None):
         """Append latest param value to logs."""
         # Append to log so other callbacks can see it / print it
         logs = logs or dict()
-        for layer_name, param in self.get_parameters():
-            logs[layer_name + "/" + self.param_name] = param.numpy()
+        for layer_name, param_name in self.layer_params:
+            param = self.get_parameter(layer_name, param_name)
+            logs[layer_name + "/" + param_name] = param.numpy()
 
 
 class Evaluator(tf.keras.callbacks.Callback):
