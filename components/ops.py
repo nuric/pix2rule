@@ -1,4 +1,5 @@
 """Utility operations."""
+from typing import List, Union
 import tensorflow as tf
 
 
@@ -10,7 +11,7 @@ def leftright_cumprod(tensor: tf.Tensor, axis: int = -1) -> tf.Tensor:
 
 
 def reduce_probsum(
-    tensor: tf.Tensor, axis: int = -1, keepdims: bool = False
+    tensor: tf.Tensor, axis: Union[int, List[int]] = -1, keepdims: bool = False
 ) -> tf.Tensor:
     """Reduce given axis using probabilistic sum."""
     # tensor (..., X, ...)
