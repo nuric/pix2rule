@@ -3,9 +3,9 @@ from typing import Dict, List
 import itertools
 import numpy as np
 import tensorflow as tf
-import tensorflow_probability as tfp
 
 from reportlib import report_tensor
+from components.ops import reduce_probsum
 
 
 class DNFLayer(tf.keras.layers.Layer):
@@ -15,8 +15,8 @@ class DNFLayer(tf.keras.layers.Layer):
         self,
         arities: List[int] = None,
         num_total_variables: int = 2,
+        num_disjuncts: int = 8,
         residiual: bool = True,
-        initial_temperature: float = 2,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -35,10 +35,11 @@ class DNFLayer(tf.keras.layers.Layer):
             num_total_variables >= 0
         ), "Got negative number of total variables for conjunct."
         self.num_total_variables = num_total_variables
+        self.num_disjuncts = num_disjuncts
         self.residual = residiual  # Tells if we should merge layer output with inputs
         self.temperature = self.add_weight(
             name="temperature",
-            initializer=tf.keras.initializers.Constant(initial_temperature),
+            initializer=tf.keras.initializers.Constant(1),
             trainable=False,
         )
 
@@ -63,17 +64,16 @@ class DNFLayer(tf.keras.layers.Layer):
         )
         # ---
         # pylint: disable=attribute-defined-outside-init
-        hidden_size = 32
         self.and_kernel = self.add_weight(
             name="and_kernel",
-            shape=(len(self.arities), hidden_size, num_in, 3),
-            initializer=tf.keras.initializers.RandomNormal(mean=0.0, stddev=0.1),
+            shape=(len(self.arities), self.num_disjuncts, num_in, 3),
+            initializer=tf.keras.initializers.RandomNormal(mean=0.0, stddev=1.0),
             # regularizer=tf.keras.regularizers.L1(l1=0.01),
         )
         self.or_kernel = self.add_weight(
             name="or_kernel",
-            shape=(len(self.arities), hidden_size),
-            initializer=tf.keras.initializers.RandomNormal(mean=0.0, stddev=0.1),
+            shape=(len(self.arities), self.num_disjuncts),
+            initializer=tf.keras.initializers.RandomNormal(mean=0.0, stddev=1.0),
         )
         # ---------------------------
         # Compute permutation indices to gather later
@@ -109,9 +109,9 @@ class DNFLayer(tf.keras.layers.Layer):
         #         'binary_preds': (B, N, N-1, P2)}
         # ---------------------------
         # Setup permutations
-        # Conjunctions in logic are permutation invariant A and B = B and A
+        # Conjunctions in logic are permutation invariant A and B <=> B and A
         # so we take naive approach of evaluating all permutations since there is
-        # background knowledge to restrict the search space.
+        # no background knowledge / mode bias to restrict the search space.
         perm_nullary = tf.repeat(
             inputs["nullary_preds"][:, None], self.perm_idxs.shape[0], axis=1
         )  # (B, K, P0)
@@ -136,48 +136,37 @@ class DNFLayer(tf.keras.layers.Layer):
         report_tensor("in_tensor", in_tensor)
         # ---------------------------
         # Compute weighted conjunct truth values
-        and_kernel = tf.nn.softmax(self.and_kernel, -1)  # (R, H, IN, 3)
-        entropy = -1 * tf.reduce_sum(
-            and_kernel * tf.math.log(and_kernel), axis=-1
-        )  # (R, H, IN)
-        # self.add_loss(0.001 * tf.reduce_mean(entropy))
+        and_kernel = tf.nn.softmax(
+            self.and_kernel / self.temperature, -1
+        )  # (R, H, IN, 3)
         report_tensor("and_kernel", and_kernel)
-        # kernel = tfp.distributions.RelaxedBernoulli(
-        #     self.temperature, logits=self.kernel
-        # ).sample()  # (IN, R)
         in_tensor = in_tensor[:, :, None, None]  # (B, K, 1, 1, IN)
-        conjunct_eval = (
+        conjuncts_eval = (
             in_tensor * and_kernel[..., 0]
             + (1 - in_tensor) * and_kernel[..., 1]
             + and_kernel[..., 2]
         )  # (B, K, R, H, IN)
-        # ---------------------------
-        # Reduce conjunction
-        # We will reshape and reduce according to the arity of these conjuncts
-        num_objects = tf.shape(inputs["unary_preds"])[1:2]  # [N]
-        eval_shape = tf.shape(conjunct_eval)  # [B, K, R, H, IN]
-        conjunct_shape = tf.concat(
-            [eval_shape[:1], num_objects, num_objects - 1, eval_shape[2:]], 0
-        )
-        conjuncts = tf.reshape(conjunct_eval, conjunct_shape)  # (B, N, N-1, R, H, IN)
         # ---
         # AND operation
-        conjuncts = tf.reduce_min(conjuncts, -1)  # (B, N, N-1, R, H)
+        conjuncts = tf.reduce_prod(conjuncts_eval, -1)  # (B, K, R, H)
         # ---------------------------
         # Compute weighted disjunct truth values
-        or_kernel = tf.nn.sigmoid(self.or_kernel)  # (R, H)
-        entropy = tf.concat(
-            [or_kernel[..., None], 1 - or_kernel[..., None]], -1
-        )  # (R, H, 2)
-        entropy = -1 * tf.reduce_sum(
-            or_kernel * tf.math.log(or_kernel), axis=-1
-        )  # (R, H)
-        # self.add_loss(0.001 * tf.reduce_mean(entropy))
-        disjuncts = conjuncts * or_kernel  # (B, N, N-1, R, H)
+        or_kernel = tf.nn.sigmoid(self.or_kernel / self.temperature)  # (R, H)
+        disjuncts = conjuncts * or_kernel  # (B, K, R, H)
         report_tensor("or_kernel", or_kernel)
         # ---
         # OR operation
-        disjuncts = tf.reduce_max(disjuncts, -1)  # (B, N, N-1, R)
+        disjuncts = reduce_probsum(disjuncts, -1)  # (B, K, R)
+        # ---------------------------
+        # Reduce conjunction
+        # We will reshape and reduce according to the arity of these conjuncts
+        num_objects = tf.shape(inputs["unary_preds"])[1]  # N
+        object_perms = num_objects - tf.range(
+            self.num_total_variables
+        )  # [N, N-1, ...] x V
+        eval_shape = tf.shape(disjuncts)  # [B, K, R]
+        rule_shape = tf.concat([eval_shape[:1], object_perms, eval_shape[2:]], 0)
+        rules = tf.reshape(disjuncts, rule_shape)  # (B, N, N-1, ..., R)
         # ---------------------------
         # THERE EXISTS operations if applicable
         try:
@@ -189,11 +178,16 @@ class DNFLayer(tf.keras.layers.Layer):
         except ValueError:
             unary_index = binary_index
         # ---
-        nullary_rules = disjuncts[..., :unary_index]  # (B, N, N-1, R0)
-        nullary_rules = tf.reduce_max(nullary_rules, [1, 2])  # (B, R0)
-        unary_rules = disjuncts[..., unary_index:binary_index]  # (B, N, N-1, R1)
-        unary_rules = tf.reduce_max(unary_rules, 2)  # (B, N, R1)
-        binary_rules = disjuncts[..., binary_index:]  # (B, N, N-1, R2)
+        # For nullary reduce over all variables, i.e. there exists XYZ ...
+        nullary_rules = rules[..., :unary_index]  # (B, N, N-1, ..., R0)
+        var_range = tf.range(self.num_total_variables) + 1  # [1, 2, ...] x V
+        nullary_rules = reduce_probsum(nullary_rules, var_range)  # (B, R0)
+        # For unary reduce over remaining variables, i.e. For all X, there exists YZ
+        unary_rules = rules[..., unary_index:binary_index]  # (B, N, N-1, ..., R1)
+        unary_rules = reduce_probsum(unary_rules, var_range[1:])  # (B, N, R1)
+        # For binary reduce over remaining variables except first 2 and so on
+        binary_rules = rules[..., binary_index:]  # (B, N, N-1, ..., R2)
+        binary_rules = reduce_probsum(binary_rules, var_range[2:])  # (B, N, N-1, R2)
         outputs = {
             "nullary_preds": nullary_rules,
             "unary_preds": unary_rules,
@@ -205,12 +199,7 @@ class DNFLayer(tf.keras.layers.Layer):
             for k in inputs.keys():
                 inputs[k] = tf.concat([inputs[k], outputs[k]], -1)
             return inputs  # (B, ..., P_ + R)
-        # Convert back to logits if predicting
-        # logits = -tf.math.log(1 / (conjuncts) - 1)  # (B, ..., R)
         return outputs
-        # slope = 20
-        # logits = {k: v * slope - slope / 2 for k, v in outputs.items()}
-        # return logits
 
     def get_config(self):
         """Serialisable configuration dictionary."""

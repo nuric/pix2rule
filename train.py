@@ -89,9 +89,9 @@ def train(run_name: str = None):
         min_value=0.01,
     )
     temp_anneal = utils.callbacks.ParamScheduler(
-        layer_params=[("and_layer", "temperature")],
+        layer_params=[("dnf_layer", "temperature")],
         scheduler=tf.keras.optimizers.schedules.ExponentialDecay(
-            2.0, decay_steps=10, decay_rate=0.9
+            1.0, decay_steps=2, decay_rate=0.9
         ),
         min_value=0.01,
     )
