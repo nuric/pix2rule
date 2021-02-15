@@ -17,7 +17,7 @@ class DNFLayer(tf.keras.layers.Layer):
         arities: List[int] = None,
         num_total_variables: int = 2,
         num_disjuncts: int = 8,
-        residiual: bool = True,
+        recursive: bool = True,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -37,7 +37,7 @@ class DNFLayer(tf.keras.layers.Layer):
         ), "Got negative number of total variables for conjunct."
         self.num_total_variables = num_total_variables
         self.num_disjuncts = num_disjuncts
-        self.residual = residiual  # Tells if we should merge layer output with inputs
+        self.recursive = recursive  # Tells if we should our outputs with given inputs
         self.temperature = self.add_weight(
             name="temperature",
             initializer=tf.keras.initializers.Constant(1),
@@ -107,6 +107,22 @@ class DNFLayer(tf.keras.layers.Layer):
         self.perm_bidxs = np.stack(
             [perm_bidxs[..., 0], perm_bidxs[..., 1] - index_shift_mask], axis=-1
         )  # (K, V, V-1, 2)
+
+    def pad_inputs(self, inputs: Dict[str, tf.Tensor]):
+        """Pad inputs to include layer outputs for recursive application."""
+        # inputs {'nullary_preds': (B, P0), 'unary_preds': (B, N, P1),
+        #         'binary_preds': (B, N, N-1, P2)}
+        keys = ["nullary_preds", "unary_preds", "binary_preds"]
+        counts = {k: self.arities.count(i) for i, k in enumerate(keys)}
+        # We want to pad only the last dimension
+        skip_dims = {k: [[0, 0]] * (i + 1) for i, k in enumerate(keys)}
+        padded = {
+            k: tf.pad(inputs[k], skip_dims[k] + [[0, counts[k]]], constant_values=0.0)
+            for k in keys
+        }
+        # padded {'nullary_preds': (B, P0+R0), 'unary_preds': (B, N, P1+R1),
+        #         'binary_preds': (B, N, N-1, P2+R2)}
+        return padded
 
     def call(self, inputs: Dict[str, tf.Tensor], **kwargs):
         """Perform forward pass of the model."""
@@ -201,10 +217,25 @@ class DNFLayer(tf.keras.layers.Layer):
         }
         # ---------------------------
         # Merge or compute return values
-        if self.residual:
-            for k in inputs.keys():
-                inputs[k] = tf.concat([inputs[k], outputs[k]], -1)
-            return inputs  # (B, ..., P_ + R)
+        if self.recursive:
+            keys = ["nullary_preds", "unary_preds", "binary_preds"]
+            # We assume the last R predicates are the learnt rules, so we slice
+            # and concenate back their new values. i.e. amalgamate
+            merged: Dict[str, tf.Tensor] = dict()
+            for i, k in enumerate(keys):
+                count = self.arities.count(i)
+                # Check if we have any variables at hand
+                # tf.function should handle this if statement
+                # as it is a fixed pure Python check
+                if count == 0:
+                    merged[k] = inputs[k]
+                    continue
+                old_value = inputs[k][..., -count:]  # (..., RX)
+                merged_value = tf.stack([old_value, outputs[k]], -1)  # (..., RX, 2)
+                # Amalgamate function here, we use probabilistic sum
+                next_value = reduce_probsum(merged_value, -1)  # (..., RX)
+                merged[k] = tf.concat([inputs[k][..., :-count], next_value], -1)
+            return merged
         return outputs
 
     def get_config(self):

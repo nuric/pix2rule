@@ -119,10 +119,13 @@ def build_model() -> tf.keras.Model:  # pylint: disable=too-many-locals
     # ground_facts = AndLayer(arities=list(np.repeat([0, 1, 2], 3)), residiual=True)(
     #     ground_facts
     # )  # {'nullary_preds': ..., 'unary_preds': ..., 'binary_preds': ...}
-    predictions = DNFLayer(arities=[0, 0, 0, 0], residiual=False)(
+    dnf_layer = DNFLayer(arities=[0, 0, 0, 0], recursive=True)
+    padded_facts = dnf_layer.pad_inputs(
         ground_facts
-    )  # {'nullary_preds': ..., 'unary_preds': ..., 'binary_preds': ...}
-    predictions = predictions["nullary_preds"]  # (B, S)
+    )  # {'nullary_preds': (B, P0 + R0), ...}
+    for _ in range(2):
+        padded_facts = dnf_layer(padded_facts)  # {'nullary_preds': (B, P0+R0), ...}
+    predictions = padded_facts["nullary_preds"][..., -4:]  # (B, R0)
     return tf.keras.Model(
         inputs=[image, task_id],
         outputs=predictions,
