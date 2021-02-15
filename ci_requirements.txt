@@ -2,6 +2,7 @@
 # Numerical
 numpy
 tensorflow
+tensorflow_probability
 # Tools
 mlflow
 tqdm
