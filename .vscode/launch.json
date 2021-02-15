@@ -12,7 +12,7 @@
             "console": "integratedTerminal",
             "args": [
                 "--model_name",
-                "relsgame_model",
+                "dnf_image_classifier",
                 "--dataset_name",
                 "relsgame",
                 "--max_steps",
@@ -21,6 +21,7 @@
                 "same",
                 "--relsgame_train_size",
                 "10000",
+                "--relsgame_one_hot_labels",
                 "--eval_every",
                 "200",
                 "--converged_loss",

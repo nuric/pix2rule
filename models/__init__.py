@@ -9,7 +9,7 @@ from configlib import config as C
 from . import rule_learner
 from . import sequences_model
 
-from . import relsgame_model
+from . import dnf_image_classifier
 
 # ---------------------------
 # We expose a list of custom layers for saving and loading models
@@ -26,7 +26,7 @@ custom_layers.update(components.custom_layers)
 # registry = {m.__name__.split(".")[-1]: m.build_model for m in [sequence_model]}
 # type checker seems to not recognise what is going above
 registry = {
-    "image_classifier": relsgame_model.build_model,
+    "dnf_image_classifier": dnf_image_classifier.build_model,
 }
 # ---------------------------
 
