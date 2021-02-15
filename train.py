@@ -57,23 +57,16 @@ parser.add_argument("--tracking_uri", help="MLflow tracking URI.")
 def train(run_name: str = None):
     """Training loop for single run."""
     # Load data
-    dsets = datasets.load_data()
-    logger.info("Loaded datasets: %s", str(dsets))
+    data_description, dsets = datasets.load_data()
+    logger.info("Loaded dataset: %s", str(data_description))
     # ---------------------------
     # Setup model
-    model = models.build_model()
+    model = models.build_model(data_description)
     # Pre-compile debug run
     if C["debug"]:
         report = create_report(model, dsets["train"])
         print("Debug report keys:", report.keys())
-    model.compile(
-        optimizer="adam",
-        # loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-        loss=tf.keras.losses.BinaryCrossentropy(from_logits=False),
-        # metrics=[tf.keras.metrics.SparseCategoricalAccuracy(name="acc")],
-        metrics=[tf.keras.metrics.CategoricalAccuracy(name="acc")],
-    )
-    model.summary()
+    model.summary(line_length=180)
     # ---
     run_name = run_name or utils.hashing.dict_hash(C)
     art_dir = Path(C["experiment_name"]) / run_name

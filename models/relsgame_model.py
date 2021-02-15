@@ -1,5 +1,5 @@
 """Rule learning model for relsgame dataset."""
-from typing import Dict
+from typing import Dict, Any
 import numpy as np
 import tensorflow as tf
 import tensorflow.keras.layers as L
@@ -85,7 +85,9 @@ class RelsgameFeatures(L.Layer):
         return config
 
 
-def build_model() -> tf.keras.Model:  # pylint: disable=too-many-locals
+def build_model(
+    data_description: Dict[str, Any]
+) -> tf.keras.Model:  # pylint: disable=too-many-locals
     """Build the trainable model."""
     # ---------------------------
     # Setup inputs
@@ -126,8 +128,25 @@ def build_model() -> tf.keras.Model:  # pylint: disable=too-many-locals
     for _ in range(2):
         padded_facts = dnf_layer(padded_facts)  # {'nullary_preds': (B, P0+R0), ...}
     predictions = padded_facts["nullary_preds"][..., -4:]  # (B, R0)
-    return tf.keras.Model(
+    # ---------------------------
+    # Create model with given inputs and outputs
+    model = tf.keras.Model(
         inputs=[image, task_id],
         outputs=predictions,
         name="relsgame_model",
     )
+    # ---------------------------
+    # Compile model for training
+    dataset_type = data_description["output"]["type"]
+    assert (
+        dataset_type == "multilabel"
+    ), f"DNF classifier requires a multilabel dataset, got {dataset_type}"
+    model.compile(
+        optimizer="adam",
+        # loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+        loss=tf.keras.losses.BinaryCrossentropy(from_logits=False),
+        # metrics=[tf.keras.metrics.SparseCategoricalAccuracy(name="acc")],
+        metrics=[tf.keras.metrics.CategoricalAccuracy(name="acc")],
+    )
+    # ---------------------------
+    return model

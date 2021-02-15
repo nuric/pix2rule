@@ -1,5 +1,5 @@
 """Combined data module."""
-from typing import Dict
+from typing import Dict, Tuple, Any
 import tensorflow as tf
 import configlib
 from configlib import config as C
@@ -28,6 +28,6 @@ parser.add_argument(
 # ---------------------------
 
 
-def load_data(name: str = None) -> Dict[str, tf.data.Dataset]:
+def load_data(name: str = None) -> Tuple[Dict[str, Any], Dict[str, tf.data.Dataset]]:
     """Load dataset by given name."""
     return registry[name or C["dataset_name"]]()

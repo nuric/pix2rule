@@ -1,7 +1,7 @@
 """Relations game dataset from PrediNet paper.
 
 Source of data: https://arxiv.org/pdf/1905.10307.pdf"""
-from typing import Dict, List
+from typing import Dict, List, Tuple, Any
 import logging
 from pathlib import Path
 
@@ -52,6 +52,7 @@ def get_file(fname: str) -> str:
     """Get or download relations game data."""
     assert fname.endswith(".npz"), "Can only download npz files for relsgame."
     url = "https://storage.googleapis.com/storage/v1/b/relations-game-datasets/o/{}?alt=media"
+    url = "https://storage.cloud.google.com/relations-game-datasets/{}"
     try:
         fpath = tf.keras.utils.get_file(
             fname, url.format(fname), cache_subdir="relsgame", cache_dir=C["data_dir"]
@@ -157,7 +158,7 @@ def create_compressed_files():
     np.savez_compressed(cpath, **compressed_arrs)
 
 
-def load_data() -> Dict[str, tf.data.Dataset]:
+def load_data() -> Tuple[Dict[str, Any], Dict[str, tf.data.Dataset]]:
     """Load and process relations game dataset."""
     cpath = get_compressed_path()
     if not cpath.exists():
@@ -194,5 +195,27 @@ def load_data() -> Dict[str, tf.data.Dataset]:
             tfdata = tfdata.batch(C["relsgame_batch_size"])
         dsets[dname] = tfdata
     # ---------------------------
-    # Convert to tf.data.Dataset
-    return dsets
+    # Generate description
+    inputs = {
+        k: {"shape": tuple(v.shape), "dtype": v.dtype}
+        for k, v in dsets["train"].element_spec[0].items()
+    }
+    inputs["image"]["type"] = "image"
+    inputs["task_id"]["type"] = "categorical"
+    inputs["task_id"]["num_categories"] = len(all_tasks)
+    # ---
+    output_spec = dsets["train"].element_spec[1]
+    output = {
+        "shape": tuple(output_spec.shape),
+        "dtype": output_spec.dtype,
+        "num_categories": max_label,
+        "type": "multilabel" if len(output_spec.shape) > 1 else "multiclass",
+    }
+    description = {
+        "name": "relsgame",
+        "inputs": inputs,
+        "output": output,
+        "datasets": list(dsets.keys()),
+    }
+    # ---------------------------
+    return description, dsets

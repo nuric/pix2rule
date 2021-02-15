@@ -9,7 +9,7 @@ from components.ops import reduce_probsum
 from components.initialisers import CategoricalRandomNormal, BernoulliRandomNormal
 
 
-class DNFLayer(tf.keras.layers.Layer):
+class DNFLayer(tf.keras.layers.Layer):  # pylint: disable=too-many-instance-attributes
     """Single layer that represents conjunction with permutation invariance."""
 
     def __init__(

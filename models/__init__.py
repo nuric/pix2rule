@@ -1,5 +1,5 @@
 """Models library for custom layers and models."""
-from typing import Dict
+from typing import Dict, Any
 import tensorflow as tf
 
 import components
@@ -26,8 +26,7 @@ custom_layers.update(components.custom_layers)
 # registry = {m.__name__.split(".")[-1]: m.build_model for m in [sequence_model]}
 # type checker seems to not recognise what is going above
 registry = {
-    "sequences_model": sequences_model.build_model,
-    "relsgame_model": relsgame_model.build_model,
+    "image_classifier": relsgame_model.build_model,
 }
 # ---------------------------
 
@@ -43,6 +42,6 @@ parser.add_argument(
 # ---------------------------
 
 
-def build_model(name: str = None) -> tf.keras.Model:
+def build_model(data_description: Dict[str, Any], name: str = None) -> tf.keras.Model:
     """Build given model by name."""
-    return registry[name or C["model_name"]]()
+    return registry[name or C["model_name"]](data_description)

@@ -1,5 +1,5 @@
 """Sequences dataset."""
-from typing import Dict, List
+from typing import Dict, List, Tuple, Any
 import logging
 import numpy as np
 import tensorflow as tf
@@ -39,6 +39,9 @@ parser.add_argument(
     "--seq_gen_size", default=1000, type=int, help="Random data tries per task."
 )
 parser.add_argument("--seq_batch_size", default=64, type=int, help="Data batch size.")
+parser.add_argument(
+    "--seq_one_hot_labels", action="store_true", help="One-hot encode sequence labels."
+)
 
 # ---------------------------
 
@@ -106,7 +109,7 @@ def gen_all() -> Dict[str, np.ndarray]:
 # ---------------------------
 
 # Data loading
-def load_data() -> Dict[str, tf.data.Dataset]:
+def load_data() -> Tuple[Dict[str, Any], Dict[str, tf.data.Dataset]]:
     """Load and prepare Sequences data."""
     # Generate the dataset, we get a single numpy array
     data = gen_all()  # {'train': (train, 1+L+1), 'test': (test, 1+L+1)}
@@ -120,12 +123,37 @@ def load_data() -> Dict[str, tf.data.Dataset]:
     # ---------------------------
     # Convert to tf.data.Dataset
     # tfdata = tf.data.Dataset.from_tensor_slices({"input": data[:, :-1], "label": data[:, -1]})
+    labels = v[:, -1]
+    if C["seq_one_hot_labels"]:
+        labels = np.eye(C["seq_symbols"], dtype=np.int32)[labels]
     dsets: Dict[str, tf.data.Dataset] = {
-        k: tf.data.Dataset.from_tensor_slices(({"input": v[:, :-1]}, v[:, -1]))
+        k: tf.data.Dataset.from_tensor_slices(({"sequence": v[:, :-1]}, labels))
         for k, v in data.items()
     }
     # Shuffle and batch
     dsets["train"] = dsets["train"].shuffle(1000).batch(C["seq_batch_size"]).repeat()
     dsets["test"] = dsets["test"].batch(C["seq_batch_size"])
     # ---------------------------
-    return dsets
+    # Generate description
+    inputs = {
+        k: {"shape": tuple(v.shape), "dtype": v.dtype}
+        for k, v in dsets["train"].element_spec[0].items()
+    }
+    inputs["sequence"]["type"] = "categorical"
+    inputs["sequence"]["num_categories"] = C["seq_symbols"]
+    # ---
+    output_spec = dsets["train"].element_spec[1]
+    output = {
+        "shape": tuple(output_spec.shape),
+        "dtype": output_spec.dtype,
+        "num_categories": C["seq_symbols"],
+        "type": "multilabel" if len(output_spec.shape) > 1 else "multiclass",
+    }
+    description = {
+        "name": "relsgame",
+        "inputs": inputs,
+        "output": output,
+        "metadata": metadata,
+    }
+    # ---------------------------
+    return description, dsets
