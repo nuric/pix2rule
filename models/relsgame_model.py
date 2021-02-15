@@ -13,15 +13,23 @@ from .rule_learner import DNFLayer
 class RelsgameFeatures(L.Layer):
     """Relations game object features."""
 
-    def __init__(self, unary_preds: int = 4, binary_preds: int = 4, **kwargs):
+    def __init__(self, unary_preds: int = 4, binary_preds: int = 16, **kwargs):
         super().__init__(**kwargs)
         self.unary_preds = unary_preds
         self.binary_preds = binary_preds
         self.unary_model = L.Dense(
-            unary_preds, activation="sigmoid", name="unary_model"
+            unary_preds,
+            activation="sigmoid",
+            name="unary_model",
+            bias_initializer=tf.keras.initializers.Constant(4),
+            # bias_initializer=tf.keras.initializers.RandomNormal(mean=0.0, stddev=4.0),
         )
         self.binary_model = L.Dense(
-            binary_preds, activation="sigmoid", name="binary_model"
+            binary_preds,
+            activation="sigmoid",
+            name="binary_model",
+            bias_initializer=tf.keras.initializers.Constant(4),
+            # bias_initializer=tf.keras.initializers.RandomNormal(mean=0.0, stddev=4.0),
         )
         # There are 5 tasks, we'll one hot encode them
         self.num_tasks = 5

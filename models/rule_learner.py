@@ -6,6 +6,7 @@ import tensorflow as tf
 
 from reportlib import report_tensor
 from components.ops import reduce_probsum
+from components.initialisers import CategoricalRandomNormal, BernoulliRandomNormal
 
 
 class DNFLayer(tf.keras.layers.Layer):
@@ -64,16 +65,21 @@ class DNFLayer(tf.keras.layers.Layer):
         )
         # ---
         # pylint: disable=attribute-defined-outside-init
+        and_prob = 2 / num_in  # Average number of predicates per conjunct
         self.and_kernel = self.add_weight(
             name="and_kernel",
             shape=(len(self.arities), self.num_disjuncts, num_in, 3),
-            initializer=tf.keras.initializers.RandomNormal(mean=0.0, stddev=1.0),
+            # initializer=tf.keras.initializers.RandomNormal(mean=0.0, stddev=10.0),
+            initializer=CategoricalRandomNormal(
+                probs=[and_prob, 0.0, 1 - and_prob], mean=2.0, stddev=1.0
+            )
             # regularizer=tf.keras.regularizers.L1(l1=0.01),
         )
         self.or_kernel = self.add_weight(
             name="or_kernel",
             shape=(len(self.arities), self.num_disjuncts),
-            initializer=tf.keras.initializers.RandomNormal(mean=0.0, stddev=1.0),
+            # initializer=tf.keras.initializers.RandomNormal(mean=0.0, stddev=10.0),
+            initializer=BernoulliRandomNormal(prob=0.9, mean=2.0, stddev=1.0),
         )
         # ---------------------------
         # Compute permutation indices to gather later
