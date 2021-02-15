@@ -123,21 +123,22 @@ def load_data() -> Tuple[Dict[str, Any], Dict[str, tf.data.Dataset]]:
     # ---------------------------
     # Convert to tf.data.Dataset
     # tfdata = tf.data.Dataset.from_tensor_slices({"input": data[:, :-1], "label": data[:, -1]})
-    labels = v[:, -1]
-    if C["seq_one_hot_labels"]:
-        labels = np.eye(C["seq_symbols"], dtype=np.int32)[labels]
-    dsets: Dict[str, tf.data.Dataset] = {
-        k: tf.data.Dataset.from_tensor_slices(({"sequence": v[:, :-1]}, labels))
-        for k, v in data.items()
-    }
+    dsets: Dict[str, tf.data.Dataset] = dict()
+    for k, sequence in data.items():
+        labels = sequence[:, -1]
+        if C["seq_one_hot_labels"]:
+            labels = np.eye(C["seq_symbols"], dtype=np.int32)[labels]
+        dsets[k] = tf.data.Dataset.from_tensor_slices(
+            ({"sequence": sequence[:, :-1]}, labels)
+        )
     # Shuffle and batch
     dsets["train"] = dsets["train"].shuffle(1000).batch(C["seq_batch_size"]).repeat()
     dsets["test"] = dsets["test"].batch(C["seq_batch_size"])
     # ---------------------------
     # Generate description
     inputs = {
-        k: {"shape": tuple(v.shape), "dtype": v.dtype}
-        for k, v in dsets["train"].element_spec[0].items()
+        k: {"shape": tuple(sequence.shape), "dtype": sequence.dtype}
+        for k, sequence in dsets["train"].element_spec[0].items()
     }
     inputs["sequence"]["type"] = "categorical"
     inputs["sequence"]["num_categories"] = C["seq_symbols"]

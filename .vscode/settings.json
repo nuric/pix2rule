@@ -5,4 +5,5 @@
     "python.testing.unittestEnabled": true,
     "python.linting.mypyEnabled": true,
     "python.linting.pylintEnabled": true,
+    "files.insertFinalNewline": true,
 }
