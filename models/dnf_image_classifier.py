@@ -5,9 +5,12 @@ import tensorflow as tf
 import tensorflow.keras.layers as L
 
 from reportlib import ReportLayer
-from components.relsgame_cnn import RelationsGameCNN
+from components.inputlayers.image import RelationsGameImageInput
 from components.object_selection import RelaxedObjectSelection
 from .dnf_layer import DNFLayer
+
+# import configlib
+# from configlib import config as C
 
 
 class RelsgameFeatures(L.Layer):
@@ -95,7 +98,7 @@ def build_model(
     task_id = L.Input(shape=(), name="task_id", dtype="int32")  # (B,)
     # ---------------------------
     # Process the images
-    raw_objects = RelationsGameCNN()(image)  # (B, O, E)
+    raw_objects = RelationsGameImageInput()(image)  # (B, O, E)
     # raw_objects = RelationsGamePixelCNN()(image)  # (B, W*H, E)
     # raw_objects = Shuffle()(raw_objects)  # (B, O, E)
     # ---------------------------
