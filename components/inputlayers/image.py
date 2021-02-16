@@ -45,7 +45,6 @@ class RelationsGamePixelImageInput(BaseImageInput):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.hidden_size = 32
         self.encoder_cnn = tf.keras.Sequential(
             [
                 L.Conv2D(
