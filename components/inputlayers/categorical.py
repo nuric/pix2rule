@@ -2,7 +2,7 @@
 import tensorflow as tf
 
 
-class CategoricalInput(tf.keras.layers.Layer):
+class OneHotCategoricalInput(tf.keras.layers.Layer):
     """Process a categorical input as one-hot."""
 
     def __init__(self, num_categories: int, **kwargs):
