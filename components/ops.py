@@ -20,6 +20,15 @@ def reduce_probsum(
     )  # (..., 1?, ...)
 
 
+def flatten_concat(tensors: List[tf.Tensor], batch_dims: int = 1) -> tf.Tensor:
+    """Flatten given inputs and concatenate them."""
+    # tensors [(B, ...), (B, ...)]
+    flattened = [
+        tf.reshape(x, tf.concat([tf.shape(x)[:batch_dims], [-1]], 0)) for x in tensors
+    ]  # [(B, X), (B, Y) ...]
+    return tf.concat(flattened, -1)  # (B, X+Y+...)
+
+
 def scaled_softmax(
     tensor: tf.Tensor, axis: int = -1, alpha: float = 0.999
 ) -> tf.Tensor:

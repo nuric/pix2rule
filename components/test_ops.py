@@ -47,3 +47,17 @@ class TestOps(tf.test.TestCase):
         tensor = tf.random.normal((4, 1, 2))
         output = ops.scaled_softmax(tensor, axis=1)
         self.assertAllEqual(output, tf.ones_like(output))
+
+    def test_flattened_concat_single_batch_dim(self):
+        """Flattens given tensors with a single batch dim."""
+        tensor1 = tf.random.normal((4, 2, 4))
+        tensor2 = tf.random.normal((4, 3, 2))
+        output = ops.flatten_concat([tensor1, tensor2], batch_dims=1)
+        self.assertEqual(output.shape, [4, 14])
+
+    def test_flattened_concat_multiple_batch_dim(self):
+        """Flattens given tensors with a single batch dim."""
+        tensor1 = tf.random.normal((4, 3, 4))
+        tensor2 = tf.random.normal((4, 3, 2))
+        output = ops.flatten_concat([tensor1, tensor2], batch_dims=2)
+        self.assertEqual(output.shape, [4, 3, 6])
