@@ -7,16 +7,12 @@ import configlib
 from configlib import config as C
 
 from . import rule_learner
-from . import sequences_model
 
 from . import dnf_image_classifier
 
 # ---------------------------
 # We expose a list of custom layers for saving and loading models
-custom_layers: Dict[str, type] = {
-    l.__name__: l
-    for l in [rule_learner.SequencesRuleLearner, rule_learner.BaseRuleLearner]
-}
+custom_layers: Dict[str, type] = {l.__name__: l for l in [rule_learner.DNFLayer]}
 # Merge into custom component layers
 custom_layers.update(components.custom_layers)
 # ---------------------------
@@ -35,7 +31,7 @@ registry = {
 parser = configlib.add_parser("Global model options.")
 parser.add_argument(
     "--model_name",
-    default="sequences_model",
+    default=next(iter(registry.keys())),
     choices=registry.keys(),
     help="Model name to train / evaluate.",
 )
