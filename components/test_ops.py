@@ -35,3 +35,15 @@ class TestOps(tf.test.TestCase):
         res = ops.reduce_probsum(tensor)
         self.assertEqual(res.shape, [4, 2])
         self.assertAllClose(tf.ones(res.shape), res)
+
+    def test_scaled_softmax(self):
+        """Scaled softmax returns a sharpened version of softmax."""
+        tensor = tf.constant([0.2, 0.9])
+        output = ops.scaled_softmax(tensor)
+        self.assertAllClose(tf.math.round(output), [0.0, 1.00])
+
+    def test_scaled_softmax_single_class(self):
+        """Scaled softmax returns 1 when there is only one input."""
+        tensor = tf.random.normal((4, 1, 2))
+        output = ops.scaled_softmax(tensor, axis=1)
+        self.assertAllEqual(output, tf.ones_like(output))
