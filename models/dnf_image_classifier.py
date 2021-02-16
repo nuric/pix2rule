@@ -7,7 +7,7 @@ import tensorflow.keras.layers as L
 from reportlib import ReportLayer
 from components.relsgame_cnn import RelationsGameCNN
 from components.object_selection import RelaxedObjectSelection
-from .rule_learner import DNFLayer
+from .dnf_layer import DNFLayer
 
 
 class RelsgameFeatures(L.Layer):

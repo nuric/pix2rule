@@ -6,13 +6,13 @@ import components
 import configlib
 from configlib import config as C
 
-from . import rule_learner
+from . import dnf_layer
 
 from . import dnf_image_classifier
 
 # ---------------------------
 # We expose a list of custom layers for saving and loading models
-custom_layers: Dict[str, type] = {l.__name__: l for l in [rule_learner.DNFLayer]}
+custom_layers: Dict[str, type] = {l.__name__: l for l in [dnf_layer.DNFLayer]}
 # Merge into custom component layers
 custom_layers.update(components.custom_layers)
 # ---------------------------
