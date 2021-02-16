@@ -54,9 +54,9 @@ class DNFLayer(tf.keras.layers.Layer):  # pylint: disable=too-many-instance-attr
         # Flattened number of facts are the input
         # P0 + V*P1 + V*(V-1)*P2
         pred0, pred1, pred2 = (
-            input_shape["nullary_preds"][-1],
-            input_shape["unary_preds"][-1],
-            input_shape["binary_preds"][-1],
+            input_shape["nullary"][-1],
+            input_shape["unary"][-1],
+            input_shape["binary"][-1],
         )
         num_in = (
             pred0
@@ -84,7 +84,7 @@ class DNFLayer(tf.keras.layers.Layer):  # pylint: disable=too-many-instance-attr
         # ---------------------------
         # Compute permutation indices to gather later
         # For K permutations it tells what indices V variables take
-        num_objects = input_shape["unary_preds"][1]  # N
+        num_objects = input_shape["unary"][1]  # N
         assert (
             self.num_total_variables <= num_objects
         ), f"More variables {self.num_total_variables} than objects {num_objects}"
@@ -110,9 +110,9 @@ class DNFLayer(tf.keras.layers.Layer):  # pylint: disable=too-many-instance-attr
 
     def pad_inputs(self, inputs: Dict[str, tf.Tensor]):
         """Pad inputs to include layer outputs for recursive application."""
-        # inputs {'nullary_preds': (B, P0), 'unary_preds': (B, N, P1),
-        #         'binary_preds': (B, N, N-1, P2)}
-        keys = ["nullary_preds", "unary_preds", "binary_preds"]
+        # inputs {'nullary': (B, P0), 'unary': (B, N, P1),
+        #         'binary': (B, N, N-1, P2)}
+        keys = ["nullary", "unary", "binary"]
         counts = {k: self.arities.count(i) for i, k in enumerate(keys)}
         # We want to pad only the last dimension
         skip_dims = {k: [[0, 0]] * (i + 1) for i, k in enumerate(keys)}
@@ -135,16 +135,14 @@ class DNFLayer(tf.keras.layers.Layer):  # pylint: disable=too-many-instance-attr
         # so we take naive approach of evaluating all permutations since there is
         # no background knowledge / mode bias to restrict the search space.
         perm_nullary = tf.repeat(
-            inputs["nullary_preds"][:, None], self.perm_idxs.shape[0], axis=1
+            inputs["nullary"][:, None], self.perm_idxs.shape[0], axis=1
         )  # (B, K, P0)
-        perm_unary = tf.gather(
-            inputs["unary_preds"], self.perm_idxs, axis=1
-        )  # (B, K, V, P1)
+        perm_unary = tf.gather(inputs["unary"], self.perm_idxs, axis=1)  # (B, K, V, P1)
         repeat_bidxs = tf.repeat(
-            self.perm_bidxs[None], tf.shape(inputs["binary_preds"])[0], axis=0
+            self.perm_bidxs[None], tf.shape(inputs["binary"])[0], axis=0
         )  # (B, K, V, V-1, 2)
         perm_binary = tf.gather_nd(
-            inputs["binary_preds"], repeat_bidxs, batch_dims=1
+            inputs["binary"], repeat_bidxs, batch_dims=1
         )  # (B, K, V, V-1, P2)
         # ---------------------------
         # Compute flattened input
@@ -182,7 +180,7 @@ class DNFLayer(tf.keras.layers.Layer):  # pylint: disable=too-many-instance-attr
         # ---------------------------
         # Reduce conjunction
         # We will reshape and reduce according to the arity of these conjuncts
-        num_objects = tf.shape(inputs["unary_preds"])[1]  # N
+        num_objects = tf.shape(inputs["unary"])[1]  # N
         object_perms = num_objects - tf.range(
             self.num_total_variables
         )  # [N, N-1, ...] x V
@@ -211,14 +209,14 @@ class DNFLayer(tf.keras.layers.Layer):  # pylint: disable=too-many-instance-attr
         binary_rules = rules[..., binary_index:]  # (B, N, N-1, ..., R2)
         binary_rules = reduce_probsum(binary_rules, var_range[2:])  # (B, N, N-1, R2)
         outputs = {
-            "nullary_preds": nullary_rules,
-            "unary_preds": unary_rules,
-            "binary_preds": binary_rules,
+            "nullary": nullary_rules,
+            "unary": unary_rules,
+            "binary": binary_rules,
         }
         # ---------------------------
         # Merge or compute return values
         if self.recursive:
-            keys = ["nullary_preds", "unary_preds", "binary_preds"]
+            keys = ["nullary", "unary", "binary"]
             # We assume the last R predicates are the learnt rules, so we slice
             # and concenate back their new values. i.e. amalgamate
             merged: Dict[str, tf.Tensor] = dict()
