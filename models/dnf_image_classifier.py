@@ -19,18 +19,26 @@ import utils.callbacks
 from .dnf_layer import DNFLayer
 
 
+# ---------------------------
+# Setup configurable parameters of the model
 parser = configlib.add_parser("DNF Image Model Options.")
+# ---
+# Image layer parameters
+parser.add_argument(
+    "--dnf_img_noise_stddev",
+    type=float,
+    default=0.0,
+    help="Optional noise to add image input before processing.",
+)
 configlib.add_arguments_dict(
     parser, components.inputlayers.image.configurable, prefix="--dnf_image_"
 )
+# ---
+# Object selection
 configlib.add_arguments_dict(
     parser, components.object_selection.configurable, prefix="--dnf_object_sel_"
 )
-parser.add_argument(
-    "--dnf_img_noise",
-    action="store_true",
-    help="Optional add noise to image input before processing.",
-)
+# ---------------------------
 
 
 def get_and_init(module, prefix: str, **kwargs) -> tf.keras.layers.Layer:
@@ -48,6 +56,10 @@ def get_and_init(module, prefix: str, **kwargs) -> tf.keras.layers.Layer:
 def process_image(image: tf.Tensor) -> Dict[str, tf.Tensor]:
     """Process given image input to extract facts."""
     # image (B, W, H, C)
+    # ---------------------------
+    # Optional noise
+    if C["dnf_image_noise_stddev"] > 0:
+        image = L.GaussianNoise(C["dnf_image_noise_stddev"])(image)
     # ---------------------------
     # Process the images
     image_layer = get_and_init(
