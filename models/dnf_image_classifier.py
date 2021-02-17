@@ -4,8 +4,8 @@ import tensorflow as tf
 import tensorflow.keras.layers as L
 
 from reportlib import ReportLayer
-from components.merge_facts import MergeFacts
-from components.spacial_flatten import SpacialFlatten
+from components.util_layers import MergeFacts
+from components.util_layers import SpacialFlatten
 from components.inputlayers.categorical import OneHotCategoricalInput
 from components.inputlayers.image import RelationsGameImageInput
 from components.object_features import LinearObjectFeatures
