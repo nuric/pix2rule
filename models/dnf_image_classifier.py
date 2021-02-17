@@ -24,7 +24,7 @@ parser = configlib.add_parser("DNF Image Model Options.")
 # ---
 # Image layer parameters
 parser.add_argument(
-    "--dnf_img_noise_stddev",
+    "--dnf_add_image_noise_stddev",
     type=float,
     default=0.0,
     help="Optional noise to add image input before processing.",
@@ -57,8 +57,8 @@ def process_image(image: tf.Tensor) -> Dict[str, tf.Tensor]:
     # image (B, W, H, C)
     # ---------------------------
     # Optional noise
-    if C["dnf_image_noise_stddev"] > 0:
-        image = L.GaussianNoise(C["dnf_image_noise_stddev"])(image)
+    if C["dnf_add_image_noise_stddev"] > 0:
+        image = L.GaussianNoise(C["dnf_add_image_noise_stddev"])(image)
     # ---------------------------
     # Process the images
     image_layer = get_and_init(
@@ -106,12 +106,17 @@ def build_model(
     # ---------------------------
     facts = MergeFacts()(all_facts)
     # {'nullary': (B, P0), 'unary': (B, N, P1), 'binary': (B, N, N-1, P2)}
+    facts = ReportLayer()(facts)
     # ---------------------------
     # Perform rule learning and get predictions
     dnf_layer = DNFLayer(arities=[0, 0, 0, 0], recursive=True)
     padded_facts = dnf_layer.pad_inputs(facts)  # {'nullary': (B, P0+R0), ...}
     for _ in range(2):
-        padded_facts = dnf_layer(padded_facts)  # {'nullary': (B, P0+R0), ...}
+        padded_facts_kernel = dnf_layer(padded_facts)  # {'nullary': (B, P0+R0), ...}
+        padded_facts_kernel = ReportLayer()(padded_facts_kernel)
+        padded_facts = {
+            k: padded_facts_kernel[k] for k in ["nullary", "unary", "binary"]
+        }
     predictions = padded_facts["nullary"][..., -4:]  # (B, R0)
     # ---------------------------
     # Create model with given inputs and outputs

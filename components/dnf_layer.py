@@ -4,7 +4,6 @@ import itertools
 import numpy as np
 import tensorflow as tf
 
-from reportlib import report_tensor
 from components.ops import reduce_probsum
 from components.initialisers import CategoricalRandomNormal, BernoulliRandomNormal
 
@@ -153,13 +152,11 @@ class DNFLayer(tf.keras.layers.Layer):  # pylint: disable=too-many-instance-attr
         in_tensor: tf.Tensor = tf.concat(
             [perm_nullary] + flattened_in, -1
         )  # (B, K, P0 + V*P1 + V*(V-1)*P2)
-        report_tensor("in_tensor", in_tensor)
         # ---------------------------
         # Compute weighted conjunct truth values
         and_kernel = tf.nn.softmax(
             self.and_kernel / self.temperature, -1
         )  # (R, H, IN, 3)
-        report_tensor("and_kernel", and_kernel)
         in_tensor = in_tensor[:, :, None, None]  # (B, K, 1, 1, IN)
         conjuncts_eval = (
             in_tensor * and_kernel[..., 0]
@@ -173,7 +170,6 @@ class DNFLayer(tf.keras.layers.Layer):  # pylint: disable=too-many-instance-attr
         # Compute weighted disjunct truth values
         or_kernel = tf.nn.sigmoid(self.or_kernel / self.temperature)  # (R, H)
         disjuncts = conjuncts * or_kernel  # (B, K, R, H)
-        report_tensor("or_kernel", or_kernel)
         # ---
         # OR operation
         disjuncts = reduce_probsum(disjuncts, -1)  # (B, K, R)
@@ -212,6 +208,8 @@ class DNFLayer(tf.keras.layers.Layer):  # pylint: disable=too-many-instance-attr
             "nullary": nullary_rules,
             "unary": unary_rules,
             "binary": binary_rules,
+            "and_kernel": and_kernel,
+            "or_kernel": or_kernel,
         }
         # ---------------------------
         # Merge or compute return values
@@ -219,24 +217,30 @@ class DNFLayer(tf.keras.layers.Layer):  # pylint: disable=too-many-instance-attr
             keys = ["nullary", "unary", "binary"]
             # We assume the last R predicates are the learnt rules, so we slice
             # and concenate back their new values. i.e. amalgamate
-            merged: Dict[str, tf.Tensor] = dict()
             for i, k in enumerate(keys):
                 count = self.arities.count(i)
                 # Check if we have any variables at hand
                 # tf.function should handle this if statement
                 # as it is a fixed pure Python check
                 if count == 0:
-                    merged[k] = inputs[k]
+                    outputs[k] = inputs[k]
                     continue
                 old_value = inputs[k][..., -count:]  # (..., RX)
                 merged_value = tf.stack([old_value, outputs[k]], -1)  # (..., RX, 2)
                 # Amalgamate function here, we use probabilistic sum
                 next_value = reduce_probsum(merged_value, -1)  # (..., RX)
-                merged[k] = tf.concat([inputs[k][..., :-count], next_value], -1)
-            return merged
+                outputs[k] = tf.concat([inputs[k][..., :-count], next_value], -1)
         return outputs
 
     def get_config(self):
         """Serialisable configuration dictionary."""
         config = super().get_config()
+        config.update(
+            {
+                "arities": self.arities,
+                "num_total_variables": self.num_total_variables,
+                "num_disjuncts": self.num_disjuncts,
+                "recursive": self.recursive,
+            }
+        )
         return config
