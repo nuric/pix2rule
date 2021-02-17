@@ -16,7 +16,7 @@ class DNFLayer(tf.keras.layers.Layer):  # pylint: disable=too-many-instance-attr
         arities: List[int] = None,
         num_total_variables: int = 2,
         num_disjuncts: int = 8,
-        recursive: bool = True,
+        recursive: bool = False,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -208,7 +208,7 @@ class DNFLayer(tf.keras.layers.Layer):  # pylint: disable=too-many-instance-attr
             "nullary": nullary_rules,
             "unary": unary_rules,
             "binary": binary_rules,
-            "and_kernel": and_kernel,
+            "and_kernel": and_kernel,  # We return the kernels for analysis
             "or_kernel": or_kernel,
         }
         # ---------------------------
