@@ -2,6 +2,29 @@
 import tensorflow as tf
 import tensorflow.keras.layers as L
 
+# Following dictionary defines configurable parameters
+# so we can change them as hyperparameters later on.
+# We follow a tell don't ask approach here and each
+# module tells what can be configured when used.
+configurable = {
+    "layer_name": {
+        "type": str,
+        "default": "RelationsGameImageInput",
+        "choices": ["RelationsGameImageInput", "RelationsGamePixelImageInput"],
+        "help": "Image input layer to use.",
+    },
+    "hidden_size": {
+        "type": int,
+        "default": 32,
+        "help": "Hidden size of image pipeline layers.",
+    },
+    "activation": {
+        "type": str,
+        "choices": ["relu", "sigmoid", "tanh"],
+        "help": "Activation of hidden and final layer of image pipeline.",
+    },
+}
+
 
 class BaseImageInput(L.Layer):
     """Base class for image input, often children class will be CNNs."""

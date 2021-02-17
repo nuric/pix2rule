@@ -23,6 +23,18 @@ def add_parser(title: str, description: str = ""):
     return parser.add_argument_group(title, description)
 
 
+def add_arguments_dict(
+    existing_parser: argparse.ArgumentParser,
+    arguments: Dict[str, Dict[str, Any]],
+    prefix: str = "",
+):
+    """Add arguments from a dictionary into the parser with given prefix."""
+    if not prefix.startswith("--"):
+        prefix = "--" + prefix
+    for argname, conf in arguments.items():
+        existing_parser.add_argument(prefix + argname, **conf)
+
+
 def parse(save_fname: str = "") -> str:
     """Clean configuration and parse given arguments."""
     # Start from clean configuration

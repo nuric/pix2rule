@@ -3,51 +3,79 @@ from typing import Dict, Any
 import tensorflow as tf
 import tensorflow.keras.layers as L
 
+import configlib
+from configlib import config as C
 from reportlib import ReportLayer
+
 from components.util_layers import MergeFacts
 from components.util_layers import SpacialFlatten
 from components.inputlayers.categorical import OneHotCategoricalInput
-from components.inputlayers.image import RelationsGameImageInput
+import components.inputlayers.image
 from components.object_features import LinearObjectFeatures
 from components.object_selection import RelaxedObjectSelection
+
 from .dnf_layer import DNFLayer
 
-# import configlib
-# from configlib import config as C
+
+parser = configlib.add_parser("DNF Image Model Options.")
+configlib.add_arguments_dict(
+    parser, components.inputlayers.image.configurable, prefix="--dnf_image_"
+)
+parser.add_argument(
+    "--dnf_img_noise",
+    action="store_true",
+    help="Optional add noise to image input before processing.",
+)
 
 
-def build_model(
-    data_description: Dict[str, Any]
-) -> tf.keras.Model:  # pylint: disable=too-many-locals
-    """Build the trainable model."""
-    # ---------------------------
-    # Setup inputs
-    image = L.Input(shape=(12, 12, 3), name="image", dtype="float32")  # (B, W, H, C)
-    task_id = L.Input(shape=(), name="task_id", dtype="int32")  # (B,)
-    task_facts = OneHotCategoricalInput(
-        data_description["inputs"]["task_id"]["num_categories"]
-    )(task_id)
-    # {'nullary': (B, T)}
+def process_image(image: tf.Tensor) -> Dict[str, tf.Tensor]:
+    """Process given image input to extract facts."""
+    # image (B, W, H, C)
     # ---------------------------
     # Process the images
-    raw_objects = RelationsGameImageInput()(image)  # (B, W, H, E)
+    image_layer = getattr(components.inputlayers.image, C["dnf_image_layer_name"])
+    image_layer = image_layer(
+        hidden_size=C["dnf_image_hidden_size"], activation=C["dnf_image_activation"]
+    )
+    raw_objects = image_layer(image)  # (B, W, H, E)
     raw_objects = SpacialFlatten()(raw_objects)  # (B, O, E)
-    # raw_objects = RelationsGamePixelCNN()(image)  # (B, W*H, E)
-    # raw_objects = Shuffle()(raw_objects)  # (B, O, E)
     # ---------------------------
     # Select a subset of objects
     obj_selector = RelaxedObjectSelection()
-    # obj_selector = SlotAttention(
-    # num_iterations=3, num_slots=3, slot_size=32, mlp_hidden_size=32
-    # )
     selected_objects = obj_selector(raw_objects)
     # {'object_scores': (B, N), 'object_atts': (B, N, O), 'objects': (B, N, E)}
     selected_objects = ReportLayer()(selected_objects)
     # ---------------------------
     # Extract unary and binary features
-    facts = LinearObjectFeatures()(selected_objects["objects"])
+    facts: Dict[str, tf.Tensor] = LinearObjectFeatures()(selected_objects["objects"])
     # {'unary': (B, N, P1), 'binary': (B, N, N-1, P2)}
-    facts = MergeFacts()([task_facts, facts])
+    return facts
+
+
+def build_model(
+    task_description: Dict[str, Any]
+) -> tf.keras.Model:  # pylint: disable=too-many-locals
+    """Build the trainable model."""
+    # ---------------------------
+    # Setup and process inputs
+    input_layers = dict()
+    all_facts = list()
+    for input_name, input_desc in task_description["inputs"].items():
+        input_layer = L.Input(
+            shape=input_desc["shape"][1:],
+            name=input_name,
+            dtype=input_desc["dtype"].name,
+        )
+        input_layers[input_name] = input_layer
+        if input_desc["type"] == "image":
+            facts = process_image(input_layer)
+            # {'unary': (B, N, P1), 'binary': (B, N, N-1, P2)}
+        elif input_desc["type"] == "categorical":
+            facts = OneHotCategoricalInput(input_desc["num_categories"])(input_layer)
+            # {'nullary': (B, T)}
+        all_facts.append(facts)
+    # ---------------------------
+    facts = MergeFacts()(all_facts)
     # {'nullary': (B, P0), 'unary': (B, N, P1), 'binary': (B, N, N-1, P2)}
     # ---------------------------
     # Perform rule learning and get predictions
@@ -59,13 +87,13 @@ def build_model(
     # ---------------------------
     # Create model with given inputs and outputs
     model = tf.keras.Model(
-        inputs=[image, task_id],
+        inputs=input_layers,
         outputs=predictions,
         name="relsgame_model",
     )
     # ---------------------------
     # Compile model for training
-    dataset_type = data_description["output"]["type"]
+    dataset_type = task_description["output"]["type"]
     assert (
         dataset_type == "multilabel"
     ), f"DNF classifier requires a multilabel dataset, got {dataset_type}"
