@@ -1,4 +1,14 @@
-"""Differentiable rule learning component."""
+"""Differentiable disjunctive normal form rule leanring component.
+
+It really does not do anything remarkable besides implementing the tedious
+operations that compute a learnable disjunctive normal form. It is naive in
+the sense that it considers all permutations for variables bindings and does
+not scale well with increasing number of objects. The learning part happens
+by asking if each atom is in the rule or nor. For conjunctions we use, in the
+rule, negation in the rule o not in the rule. For disjunctions, it is either
+in the disjunction or not. The weights needs to be initialised carefully not
+to starve the downstream layers of gradients otherwise it does not train at
+all."""
 from typing import Dict, List
 import itertools
 import numpy as np
@@ -27,13 +37,13 @@ class DNFLayer(tf.keras.layers.Layer):  # pylint: disable=too-many-instance-attr
         # e.g. p(X) <- q(X) is 1 head and total 1
         assert (
             min(self.arities) >= 0 and max(self.arities) <= 2
-        ), "Arity of rules needs to be from 0 to 2."
+        ), f"Arity of rules needs to be from 0 to 2, got {self.arities}."
         assert np.all(
             np.sort(self.arities) == self.arities
-        ), "Arity list needs to be sorted."
+        ), f"Arity list needs to be sorted, got {self.arities}."
         assert (
             num_total_variables >= 0
-        ), "Got negative number of total variables for conjunct."
+        ), "Got negative number of total variables for DNF."
         self.num_total_variables = num_total_variables
         self.num_disjuncts = num_disjuncts
         self.recursive = recursive  # Tells if we should our outputs with given inputs
