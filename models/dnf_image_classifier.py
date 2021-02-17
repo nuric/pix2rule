@@ -14,6 +14,8 @@ import components.inputlayers.image
 from components.object_features import LinearObjectFeatures
 import components.object_selection
 
+import utils.callbacks
+
 from .dnf_layer import DNFLayer
 
 
@@ -70,7 +72,7 @@ def process_image(image: tf.Tensor) -> Dict[str, tf.Tensor]:
 
 def build_model(
     task_description: Dict[str, Any]
-) -> tf.keras.Model:  # pylint: disable=too-many-locals
+) -> Dict[str, Any]:  # pylint: disable=too-many-locals
     """Build the trainable model."""
     # ---------------------------
     # Setup and process inputs
@@ -121,4 +123,22 @@ def build_model(
         metrics=[tf.keras.metrics.CategoricalAccuracy(name="acc")],
     )
     # ---------------------------
-    return model
+    # Setup temperature scheduler callback
+    callbacks = [
+        utils.callbacks.ParamScheduler(
+            layer_params=[("object_selector", "temperature")],
+            scheduler=tf.keras.optimizers.schedules.ExponentialDecay(
+                0.5, decay_steps=1, decay_rate=0.9
+            ),
+            min_value=0.01,
+        ),
+        utils.callbacks.ParamScheduler(
+            layer_params=[("dnf_layer", "temperature")],
+            scheduler=tf.keras.optimizers.schedules.ExponentialDecay(
+                1.0, decay_steps=2, decay_rate=0.9
+            ),
+            min_value=0.01,
+        ),
+    ]
+    # ---
+    return {"model": model, "callbacks": callbacks}

@@ -61,7 +61,8 @@ def train(run_name: str = None):
     logger.info("Loaded dataset: %s", str(data_description))
     # ---------------------------
     # Setup model
-    model = models.build_model(data_description)
+    model_dict = models.build_model(data_description)
+    model = model_dict["model"]
     # Pre-compile debug run
     if C["debug"]:
         report = create_report(model, dsets["train"])
@@ -73,28 +74,10 @@ def train(run_name: str = None):
     art_dir.mkdir(parents=True, exist_ok=True)
     logger.info("Local artifact dir is %s", str(art_dir))
     # ---
-    # Setup temperature scheduler callback
-    temperature_callback = utils.callbacks.ParamScheduler(
-        layer_params=[("object_selector", "temperature")],
-        scheduler=tf.keras.optimizers.schedules.ExponentialDecay(
-            0.5, decay_steps=1, decay_rate=0.9
-        ),
-        min_value=0.01,
-    )
-    temp_anneal = utils.callbacks.ParamScheduler(
-        layer_params=[("dnf_layer", "temperature")],
-        scheduler=tf.keras.optimizers.schedules.ExponentialDecay(
-            1.0, decay_steps=2, decay_rate=0.9
-        ),
-        min_value=0.01,
-    )
-    # ---
     callbacks = [
         # tf.keras.callbacks.ModelCheckpoint(
         #     str(art_dir) + "/models/latest_model", monitor="loss"
         # ),
-        temperature_callback,
-        temp_anneal,
         # utils.callbacks.EarlyStopAtConvergence(C["converged_loss"]),
         utils.callbacks.TerminateOnNaN(),
         utils.callbacks.Evaluator(dsets),
@@ -103,6 +86,9 @@ def train(run_name: str = None):
         # ),
         utils.callbacks.ArtifactSaver(dsets, art_dir),
     ]
+    # Merge in model callbacks if any
+    if "callbacks" in model_dict:
+        callbacks = model_dict["callbacks"] + callbacks
     # ---------------------------
     # Training loop
     logger.info("Starting training.")
