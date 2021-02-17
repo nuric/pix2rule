@@ -13,10 +13,9 @@ from components.inputlayers.categorical import OneHotCategoricalInput
 import components.inputlayers.image
 from components.object_features import LinearObjectFeatures
 import components.object_selection
+from components.dnf_layer import DNFLayer
 
 import utils.callbacks
-
-from .dnf_layer import DNFLayer
 
 
 # ---------------------------
