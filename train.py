@@ -75,7 +75,7 @@ def train(run_name: str = None):
     # ---
     # Setup temperature scheduler callback
     temperature_callback = utils.callbacks.ParamScheduler(
-        layer_params=[("relaxed_object_selection", "temperature")],
+        layer_params=[("object_selector", "temperature")],
         scheduler=tf.keras.optimizers.schedules.ExponentialDecay(
             0.5, decay_steps=1, decay_rate=0.9
         ),

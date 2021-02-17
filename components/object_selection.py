@@ -3,6 +3,29 @@ import tensorflow as tf
 import tensorflow.keras.layers as L
 import tensorflow_probability as tfp
 
+# Following dictionary defines configurable parameters
+# so we can change them as hyperparameters later on.
+# We follow a tell don't ask approach here and each
+# module tells what can be configured when used.
+configurable = {
+    "layer_name": {
+        "type": str,
+        "default": "RelaxedObjectSelection",
+        "choices": ["RelaxedObjectSelection", "TopKObjectSelection"],
+        "help": "Selection layer to use.",
+    },
+    "num_select": {
+        "type": int,
+        "default": 2,
+        "help": "Number of object to select.",
+    },
+    "initial_temperature": {
+        "type": float,
+        "default": 0.5,
+        "help": "Initial selection temperature if layer uses it.",
+    },
+}
+
 
 class RelaxedObjectSelection(L.Layer):
     """Select a subset of objects based on object score."""
@@ -69,12 +92,13 @@ class TopKObjectSelection(L.Layer):
     """Select a subset of objects based on top object score ."""
 
     def __init__(self, num_select: int = 2, **kwargs):
+        # Remove unused configurable arguments
+        if "initial_temperature" in kwargs:
+            del kwargs["initial_temperature"]
         super().__init__(**kwargs)
         self.num_select = num_select
         # We use a higher starting bias value so that the score inversion is more stable
-        self.object_score = L.Dense(
-            1,
-        )
+        self.object_score = L.Dense(1)
 
     def call(self, inputs, **kwargs):
         """Perform forward pass."""
