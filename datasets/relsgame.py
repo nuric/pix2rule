@@ -272,10 +272,10 @@ def load_data() -> Tuple[  # pylint: disable=too-many-locals
     output = {
         "shape": tuple(output_spec.shape),
         "dtype": output_spec.dtype,
-        "num_categories": max_label,
+        "num_categories": max_label + 1,
         "type": "multilabel" if len(output_spec.shape) > 1 else "multiclass",
         # We are learning a nullary predicate for each label
-        "target_rules": [0] * max_label,
+        "target_rules": [0] * (max_label + 1),
     }
     description = {
         "name": "relsgame",
