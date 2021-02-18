@@ -34,6 +34,11 @@ class MergeFacts(tf.keras.layers.Layer):
                 facts[key] = (
                     tf.concat([facts[key], tensor], -1) if key in facts else tensor
                 )
+        # Optionally add missing nullary entry
+        if "nullary" not in facts:
+            facts["nullary"] = tf.zeros(
+                (tf.shape(facts[next(iter(facts.keys()))])[0], 0), dtype=tf.float32
+            )
         return facts
 
 

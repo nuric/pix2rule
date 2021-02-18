@@ -29,6 +29,13 @@ class TestMergeFacts(tf.test.TestCase):
         res = util_layers.MergeFacts()([facts1])
         self.assertIs(facts1, res)
 
+    def test_missing_nullary_key(self):
+        """Adds empty tensor for missing nullary key."""
+        facts1 = {"binary": tf.random.normal((4, 2))}
+        res = util_layers.MergeFacts()([facts1])
+        self.assertIn("nullary", res)
+        self.assertEqual(res["nullary"].shape, (4, 0))
+
     def test_matching_keys(self):
         """If both keys exist, they get concatenated."""
         facts1 = {"binary": tf.random.normal((4, 2))}
