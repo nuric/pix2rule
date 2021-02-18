@@ -4,6 +4,7 @@ Source of data: https://arxiv.org/pdf/1905.10307.pdf"""
 from typing import Dict, List, Tuple, Any
 import logging
 from pathlib import Path
+import json
 
 import tqdm
 import numpy as np
@@ -51,25 +52,45 @@ parser.add_argument(
 def get_file(fname: str) -> str:
     """Get or download relations game data."""
     assert fname.endswith(".npz"), "Can only download npz files for relsgame."
-    url = "https://storage.googleapis.com/storage/v1/b/relations-game-datasets/o/{}?alt=media"
-    url = "https://storage.cloud.google.com/relations-game-datasets/{}"
-    try:
-        fpath = tf.keras.utils.get_file(
-            fname, url.format(fname), cache_subdir="relsgame", cache_dir=C["data_dir"]
-        )
-        return str(fpath)
-    except Exception as exception:  # pylint: disable=broad-except
-        logger.warning("Could not download %s: %s", fname, exception)
-        return ""
+    # url = "https://storage.googleapis.com/storage/v1/b/relations-game-datasets/o/{}?alt=media"
+    # fpath = tf.keras.utils.get_file(
+    #     fname, url.format(fname), cache_subdir="relsgame", cache_dir=C["data_dir"]
+    # )
+    # 2021-02-18 (nuric): Direct download from the above url no longer works as the files
+    # are not publicly exposed anymore. Using a Google Account we need to download them from
+    # https://console.cloud.google.com/storage/browser/relations-game-datasets
+    fpath = Path(C["data_dir"]) / "relsgame" / "original" / fname
+    logging.info("Looking for file %s -> %s", str(fpath), fpath.exists())
+    return str(fpath) if fpath.exists() else ""
 
 
 def get_compressed_path() -> Path:
     """Return compressed dataset npz path for given training and test sizes."""
-    task_hash = utils.hashing.set_hash(C["relsgame_tasks"] or all_tasks)
-    fname = (
-        f"train{C['relsgame_train_size']}_test{C['relsgame_test_size']}_{task_hash}.npz"
-    )
-    return Path(C["data_dir"]) / "relsgame" / fname
+    # ---------------------------
+    # Generate file description hash
+    tasks = C["relsgame_tasks"] or all_tasks
+    desc = {
+        "train_size": C["relsgame_train_size"],
+        "test_size": C["relsgame_test_size"],
+        "tasks": sorted(tasks),
+    }
+    desc_hash = utils.hashing.dict_hash(desc)
+    # ---------------------------
+    # Create compressed data folder and log the index.json
+    compressed_dir = Path(C["data_dir"]) / "relsgame" / "compressed"
+    compressed_dir.mkdir(parents=True, exist_ok=True)
+    index_json_filepath = compressed_dir / "index.json"
+    # ---------------------------
+    # Update json with new generated data file
+    index_json = dict()
+    if index_json_filepath.exists():
+        with index_json_filepath.open() as filep:
+            index_json = json.load(filep)
+    index_json[desc_hash] = desc
+    with index_json_filepath.open("w") as filep:
+        json.dump(index_json, filep, indent=4)
+    # ---------------------------
+    return compressed_dir / f"{desc_hash}.npz"
 
 
 def downsize_images(images: np.ndarray) -> np.ndarray:
@@ -87,7 +108,7 @@ def downsize_images(images: np.ndarray) -> np.ndarray:
     return images[:, cidxs[:, None], cidxs]  # (N, 12, 12, 3)
 
 
-def create_compressed_files():
+def generate_data():
     """Load compressed shortened versions of data files."""
     # ---------------------------
     # Collect all the files
@@ -158,12 +179,14 @@ def create_compressed_files():
     np.savez_compressed(cpath, **compressed_arrs)
 
 
-def load_data() -> Tuple[Dict[str, Any], Dict[str, tf.data.Dataset]]:
+def load_data() -> Tuple[  # pylint: disable=too-many-locals
+    Dict[str, Any], Dict[str, tf.data.Dataset]
+]:
     """Load and process relations game dataset."""
     cpath = get_compressed_path()
     if not cpath.exists():
         logger.warning("Given compressed file does not exist: %s", str(cpath))
-        create_compressed_files()
+        generate_data()
     # ---------------------------
     # Load the compressed data file
     dnpz = np.load(str(cpath))  # {'train_images': .., 'test_stripes_images': ...
@@ -186,9 +209,11 @@ def load_data() -> Tuple[Dict[str, Any], Dict[str, tf.data.Dataset]]:
         labels = dnpz[dname + "_labels"][ridxs].astype(np.int32)
         if C["relsgame_one_hot_labels"]:
             labels = np.eye(max_label + 1, dtype=np.int32)[labels]
-        tfdata = tf.data.Dataset.from_tensor_slices(
-            ({"image": imgs, "task_id": task_ids}, labels)
-        )
+        input_dict = {"image": imgs}
+        # Optionally add task_ids if there are multiple tasks
+        if len(C["relsgame_tasks"] or all_tasks) > 1:
+            input_dict["task_id"] = task_ids
+        tfdata = tf.data.Dataset.from_tensor_slices((input_dict, labels))
         if dname == "train":
             tfdata = tfdata.shuffle(1000).batch(C["relsgame_batch_size"]).repeat()
         else:
@@ -201,8 +226,9 @@ def load_data() -> Tuple[Dict[str, Any], Dict[str, tf.data.Dataset]]:
         for k, v in dsets["train"].element_spec[0].items()
     }
     inputs["image"]["type"] = "image"
-    inputs["task_id"]["type"] = "categorical"
-    inputs["task_id"]["num_categories"] = len(all_tasks)
+    if "task_id" in inputs:
+        inputs["task_id"]["type"] = "categorical"
+        inputs["task_id"]["num_categories"] = len(all_tasks)
     # ---
     output_spec = dsets["train"].element_spec[1]
     output = {
@@ -210,6 +236,8 @@ def load_data() -> Tuple[Dict[str, Any], Dict[str, tf.data.Dataset]]:
         "dtype": output_spec.dtype,
         "num_categories": max_label,
         "type": "multilabel" if len(output_spec.shape) > 1 else "multiclass",
+        # We are learning a nullary predicate for each label
+        "target_rules": [0] * max_label,
     }
     description = {
         "name": "relsgame",
