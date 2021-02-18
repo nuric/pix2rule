@@ -7,8 +7,8 @@ import configlib
 from configlib import config as C
 from reportlib import ReportLayer
 
-from components.util_layers import MergeFacts
-from components.util_layers import SpacialFlatten
+from components.util_layers import MergeFacts, SpacialFlatten
+from components.ops import flatten_concat
 from components.inputlayers.categorical import OneHotCategoricalInput
 import components.inputlayers.image
 from components.object_features import LinearObjectFeatures
@@ -36,6 +36,21 @@ configlib.add_arguments_dict(
 # Object selection
 configlib.add_arguments_dict(
     parser, components.object_selection.configurable, prefix="--dnf_object_sel_"
+)
+# ---
+# DNF Layer options
+parser.add_argument(
+    "--dnf_hidden_predicates",
+    type=int,
+    nargs="*",
+    default=[],
+    help="Hidden extra predicates to be learned.",
+)
+parser.add_argument(
+    "--dnf_iterations",
+    type=int,
+    default=2,
+    help="Number of inference steps to perform.",
 )
 # ---------------------------
 
@@ -81,9 +96,9 @@ def process_image(image: tf.Tensor) -> Dict[str, tf.Tensor]:
     return facts
 
 
-def build_model(
+def build_model(  # pylint: disable=too-many-locals
     task_description: Dict[str, Any]
-) -> Dict[str, Any]:  # pylint: disable=too-many-locals
+) -> Dict[str, Any]:
     """Build the trainable model."""
     # ---------------------------
     # Setup and process inputs
@@ -109,15 +124,25 @@ def build_model(
     facts = ReportLayer()(facts)
     # ---------------------------
     # Perform rule learning and get predictions
-    dnf_layer = DNFLayer(arities=[0, 0, 0, 0], recursive=True)
+    target_rules = task_description["output"]["target_rules"]  # List of rule arities
+    dnf_layer = DNFLayer(
+        arities=target_rules + C["dnf_hidden_predicates"], recursive=True
+    )
     padded_facts = dnf_layer.pad_inputs(facts)  # {'nullary': (B, P0+R0), ...}
-    for _ in range(2):
+    for _ in range(C["dnf_iterations"]):
         padded_facts_kernel = dnf_layer(padded_facts)  # {'nullary': (B, P0+R0), ...}
         padded_facts_kernel = ReportLayer()(padded_facts_kernel)
         padded_facts = {
             k: padded_facts_kernel[k] for k in ["nullary", "unary", "binary"]
         }
-    predictions = padded_facts["nullary"][..., -4:]  # (B, R0)
+    # ---
+    # Extract out the required target rules
+    predictions = list()
+    for arity, key in enumerate(["nullary", "unary", "binary"]):
+        count = target_rules.count(arity)
+        if count:
+            predictions.append(padded_facts[key][..., -count:])  # (B, ..., Rcount)
+    predictions = flatten_concat(predictions)  # (B, R)
     # ---------------------------
     # Create model with given inputs and outputs
     model = tf.keras.Model(
@@ -131,13 +156,10 @@ def build_model(
     assert (
         dataset_type == "multilabel"
     ), f"DNF classifier requires a multilabel dataset, got {dataset_type}"
-    model.compile(
-        optimizer="adam",
-        # loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-        loss=tf.keras.losses.BinaryCrossentropy(from_logits=False),
-        # metrics=[tf.keras.metrics.SparseCategoricalAccuracy(name="acc")],
-        metrics=[tf.keras.metrics.CategoricalAccuracy(name="acc")],
-    )
+    # loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+    loss = tf.keras.losses.BinaryCrossentropy(from_logits=False)
+    metrics = [tf.keras.metrics.CategoricalAccuracy(name="acc")]
+    # metrics=[tf.keras.metrics.SparseCategoricalAccuracy(name="acc")],
     # ---------------------------
     # Setup temperature scheduler callback
     callbacks = [
@@ -157,4 +179,4 @@ def build_model(
         ),
     ]
     # ---
-    return {"model": model, "callbacks": callbacks}
+    return {"model": model, "loss": loss, "metrics": metrics, "callbacks": callbacks}

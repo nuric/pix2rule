@@ -50,6 +50,9 @@ parser.add_argument(
 )
 parser.add_argument("--debug", action="store_true", help="Enable debug mode.")
 parser.add_argument("--tracking_uri", help="MLflow tracking URI.")
+parser.add_argument(
+    "--learning_rate", type=float, default=0.001, help="Optimizer learning rate."
+)
 
 # ---------------------------
 
@@ -57,16 +60,21 @@ parser.add_argument("--tracking_uri", help="MLflow tracking URI.")
 def train(run_name: str = None):
     """Training loop for single run."""
     # Load data
-    data_description, dsets = datasets.load_data()
-    logger.info("Loaded dataset: %s", str(data_description))
+    task_description, dsets = datasets.load_data()
+    logger.info("Loaded dataset: %s", str(task_description))
     # ---------------------------
     # Setup model
-    model_dict = models.build_model(data_description)
+    model_dict = models.build_model(task_description)
     model = model_dict["model"]
     # Pre-compile debug run
     if C["debug"]:
         report = create_report(model, dsets["train"])
         print("Debug report keys:", report.keys())
+    model.compile(
+        optimizer=tf.keras.optimizers.Adam(learning_rate=C["learning_rate"]),
+        loss=model_dict["loss"],
+        metrics=model_dict["metrics"],
+    )
     model.summary(line_length=180)
     # ---
     run_name = run_name or utils.hashing.dict_hash(C)
