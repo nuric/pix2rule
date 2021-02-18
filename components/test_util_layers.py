@@ -23,6 +23,12 @@ class TestSpacialFlatten(tf.test.TestCase):
 class TestMergeFacts(tf.test.TestCase):
     """Unit test cases merging dictionary based facts."""
 
+    def test_single_tensor_passthrough(self):
+        """If there is one tensor, it returns that tensor."""
+        facts1 = {"binary": tf.random.normal((4, 2))}
+        res = util_layers.MergeFacts()([facts1])
+        self.assertIs(facts1, res)
+
     def test_matching_keys(self):
         """If both keys exist, they get concatenated."""
         facts1 = {"binary": tf.random.normal((4, 2))}
