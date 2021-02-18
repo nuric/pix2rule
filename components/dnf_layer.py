@@ -14,7 +14,7 @@ import itertools
 import numpy as np
 import tensorflow as tf
 
-from components.ops import reduce_probsum
+from components.ops import reduce_probsum, flatten_concat
 from components.initialisers import CategoricalRandomNormal, BernoulliRandomNormal
 
 
@@ -155,13 +155,10 @@ class DNFLayer(tf.keras.layers.Layer):  # pylint: disable=too-many-instance-attr
         )  # (B, K, V, V-1, P2)
         # ---------------------------
         # Compute flattened input
-        flattened_in = [
-            tf.reshape(x, tf.concat([tf.shape(x)[:2], [-1]], 0))
-            for x in (perm_unary, perm_binary)
-        ]
-        in_tensor: tf.Tensor = tf.concat(
-            [perm_nullary] + flattened_in, -1
-        )  # (B, K, P0 + V*P1 + V*(V-1)*P2)
+        in_tensor = flatten_concat(
+            [perm_nullary, perm_unary, perm_binary], batch_dims=2
+        )
+        # (B, K, P0 + V*P1 + V*(V-1)*P2)
         # ---------------------------
         # Compute weighted conjunct truth values
         and_kernel = tf.nn.softmax(
