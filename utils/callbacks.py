@@ -196,7 +196,7 @@ class Evaluator(tf.keras.callbacks.Callback):
         logs = logs or dict()
         report = {"train_" + k: v for k, v in logs.items()}
         for dname, dset in self.datasets.items():
-            if not dname.startswith("test"):
+            if not (dname.startswith("test") or dname.startswith("validation")):
                 continue
             test_report: Dict[str, float] = self.model.evaluate(
                 self.dset_wrapper(dset), verbose=0, return_dict=True

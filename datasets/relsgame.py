@@ -36,6 +36,12 @@ parser.add_argument(
     help="Training size per task, 0 to use everything.",
 )
 parser.add_argument(
+    "--relsgame_validation_size",
+    default=1000,
+    type=int,
+    help="Validation size per task, 0 to use everything.",
+)
+parser.add_argument(
     "--relsgame_test_size",
     default=1000,
     type=int,
@@ -60,7 +66,7 @@ def get_file(fname: str) -> str:
     # are not publicly exposed anymore. Using a Google Account we need to download them from
     # https://console.cloud.google.com/storage/browser/relations-game-datasets
     fpath = Path(C["data_dir"]) / "relsgame" / "original" / fname
-    logging.info("Looking for file %s -> %s", str(fpath), fpath.exists())
+    logger.info("Looking for file %s -> %s", str(fpath), fpath.exists())
     return str(fpath) if fpath.exists() else ""
 
 
@@ -70,7 +76,9 @@ def get_compressed_path() -> Path:
     # Generate file description hash
     tasks = C["relsgame_tasks"] or all_tasks
     desc = {
+        "name": "relsgame",
         "train_size": C["relsgame_train_size"],
+        "validation_size": C["relsgame_validation_size"],
         "test_size": C["relsgame_test_size"],
         "tasks": sorted(tasks),
     }
@@ -131,6 +139,9 @@ def generate_data():
         for k in dataset_types
     }
     all_arrs["train"] = {"images": list(), "task_ids": list(), "labels": list()}
+    all_arrs["validation"] = {"images": list(), "task_ids": list(), "labels": list()}
+    # ---------------------------
+    # Iterate through data files and generate merged arrays
     logger.info("Loading relsgame data npz files.")
     for fname in tqdm.tqdm(dfiles):
         # Parse filename
@@ -148,19 +159,37 @@ def generate_data():
         ), "Different number of images and labels."
         logger.debug("Relsgame file %s has %i many images.", fname, imgs.shape[0])
         if dname == "pentos":
-            sel_idxs = np.random.choice(
-                imgs.shape[0], size=C["relsgame_train_size"] + C["relsgame_test_size"]
+            # ---------------------------
+            # Check if we have enough data points
+            total_required = (
+                C["relsgame_train_size"]
+                + C["relsgame_validation_size"]
+                + C["relsgame_test_size"]
             )
-            train_idxs, test_idxs = (
+            assert (
+                total_required <= imgs.shape[0]
+            ), f"Have {imgs.shape[0]} data points, need {total_required}."
+            # ---
+            # Generate random indices for training, validation and test
+            sel_idxs = np.random.choice(imgs.shape[0], size=total_required)
+            train_idxs, validation_idxs, test_idxs = (
                 sel_idxs[: C["relsgame_train_size"]],
-                sel_idxs[C["relsgame_train_size"] :],
+                sel_idxs[
+                    C["relsgame_train_size"] : C["relsgame_train_size"]
+                    + C["relsgame_validation_size"]
+                ],
+                sel_idxs[-C["relsgame_test_size"] :],
             )
-            all_arrs["train"]["images"].append(imgs[train_idxs])
-            all_arrs["train"]["labels"].append(labels[train_idxs])
-            task_ids = np.full(
-                len(train_idxs), all_tasks.index(task_name), dtype=np.int32
-            )
-            all_arrs["train"]["task_ids"].append(task_ids)
+            for key, indices in [
+                ("train", train_idxs),
+                ("validation", validation_idxs),
+            ]:
+                all_arrs[key]["images"].append(imgs[indices])
+                all_arrs[key]["labels"].append(labels[indices])
+                task_ids = np.full(
+                    len(indices), all_tasks.index(task_name), dtype=np.int32
+                )
+                all_arrs[key]["task_ids"].append(task_ids)
         else:
             test_idxs = np.random.choice(imgs.shape[0], size=C["relsgame_test_size"])
         all_arrs["test_" + dname]["images"].append(imgs[test_idxs])
@@ -193,7 +222,16 @@ def load_data() -> Tuple[  # pylint: disable=too-many-locals
     dsetnames = {
         "_".join(k.split("_")[:2]) for k in dnpz.files if k.startswith("test")
     }  # [test_stripes, ...]
-    dsetnames.add("train")
+    dsetnames.update(["train", "validation"])
+    # ---------------------------
+    # Sanity check
+    for dataname, array in dnpz.items():
+        # dataname is test_pentos, train etc.
+        data_type = dataname.split("_")[0]  # train, validation or test
+        expected = C["relsgame_" + data_type + "_size"]
+        assert (
+            array.shape[0] == expected
+        ), f"Expected {dataname} to have {expected} examples, got {array.shape}"
     # ---------------------------
     # Compute max labels for one-hot encoding
     max_label = max([v.max() for k, v in dnpz.items() if k.endswith("labels")])
