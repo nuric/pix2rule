@@ -116,7 +116,7 @@ def downsize_images(images: np.ndarray) -> np.ndarray:
     return images[:, cidxs[:, None], cidxs]  # (N, 12, 12, 3)
 
 
-def generate_data():
+def generate_data():  # pylint: disable=too-many-locals
     """Load compressed shortened versions of data files."""
     # ---------------------------
     # Collect all the files
