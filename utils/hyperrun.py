@@ -4,7 +4,7 @@ import itertools
 from . import hashing
 
 
-def generate_configs(hconfig: Dict[str, Any], with_hash=False) -> List[Dict[str, Any]]:
+def generate(hconfig: Dict[str, Any], with_hash=False) -> List[Dict[str, Any]]:
     """Generate every config from lists in a dictionary."""
     lists = {k: v for k, v in hconfig.items() if isinstance(v, list)}
     notlists = {k: v for k, v in hconfig.items() if not isinstance(v, list)}
@@ -19,7 +19,7 @@ def generate_configs(hconfig: Dict[str, Any], with_hash=False) -> List[Dict[str,
     return configs
 
 
-def chain_configs(*configs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def chain(*configs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Chain given iterable config dictionaries."""
     chained_configs: List[Dict[str, Any]] = list()
     for instance in itertools.product(*configs):
