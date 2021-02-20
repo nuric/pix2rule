@@ -1,9 +1,9 @@
 """Configuration for experiments."""
-from typing import Dict, Any
+from typing import Any, Dict
+import argparse
+import json
 import logging
 import pprint
-import sys
-import argparse
 
 import utils.hashing
 
@@ -11,9 +11,9 @@ logger = logging.getLogger(__name__)
 
 parser = argparse.ArgumentParser(
     description=__doc__,
-    fromfile_prefix_chars="@",
     formatter_class=argparse.ArgumentDefaultsHelpFormatter,
 )
+parser.add_argument("--config_json", help="Configuration json and index to merge.")
 
 config: Dict[str, Any] = {}
 
@@ -40,13 +40,35 @@ def parse(save_fname: str = "") -> str:
     # Start from clean configuration
     config.clear()
     config.update(vars(parser.parse_args()))
-    logging.info("Parsed %i arguments.", len(config))
+    logger.info("Parsed %i arguments.", len(config))
     # Save passed arguments
     if save_fname:
-        with open(save_fname, "w") as fout:
-            fout.write("\n".join(sys.argv[1:]))
-        logging.info("Saving arguments to %s.", save_fname)
+        save_config(save_fname)
+    # Optionally merge in json configuration
+    if config["config_json"]:
+        # This is a filepath and index
+        # myconfigs.json.2347825
+        *json_path, index = config["config_json"].split(".")
+        # [myconfigs, json], 2348725
+        with open(".".join(json_path)) as json_file:
+            json_index = json.load(json_file)
+            config.update(json_index[index])
+            logger.info(
+                "Loaded %d parameters from %s",
+                len(json_index[index]),
+                config["config_json"],
+            )
     return utils.hashing.dict_hash(config)
+
+
+def save_config(save_fname: str = ""):
+    """Save config file as a json."""
+    assert save_fname.endswith(
+        ".json"
+    ), f"Config file needs end with json, got {save_fname}."
+    with open(save_fname, "w") as config_file:
+        json.dump(config, config_file, indent=4)
+    logger.info("Saved configuration to %s.", save_fname)
 
 
 def print_config():
