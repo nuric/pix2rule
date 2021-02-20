@@ -2,6 +2,8 @@
 import logging
 import datetime
 from pathlib import Path
+import sys
+import signal
 
 import numpy as np
 import tensorflow as tf
@@ -148,13 +150,23 @@ def mlflow_train():
     mlflow.set_tag("config_hash", config_hash)
     logger.info("Artifact uri is %s", mlflow.get_artifact_uri())
     # ---------------------------
+    # Latch onto signal SIGTERM for graceful termination of long running
+    # training jobs. Be nice to other people.
+    signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(0))
+    # The above code will raise SystemExit exception which we can catch
+    # ---------------------------
     # Big data machine learning in the cloud
+    status = mlflow.entities.RunStatus.FINISHED
     try:
         train(run_name=run_id)
     except KeyboardInterrupt:
-        logger.warning("Pausing training on keyboard interrupt.")
-    else:
-        mlflow.end_run()
+        logger.warning("Killing training on keyboard interrupt.")
+        status = mlflow.entities.RunStatus.KILLED
+    except SystemExit:
+        logger.warning("Pausing training on system exit.")
+        status = mlflow.entities.RunStatus.SCHEDULED
+    finally:
+        mlflow.end_run(mlflow.entities.RunStatus.to_string(status))
 
 
 if __name__ == "__main__":
