@@ -228,7 +228,10 @@ def load_data() -> Tuple[  # pylint: disable=too-many-locals
     for dataname, array in dnpz.items():
         # dataname is test_pentos, train etc.
         data_type = dataname.split("_")[0]  # train, validation or test
-        expected = C["relsgame_" + data_type + "_size"]
+        multiplier = len(C["relsgame_tasks"] or all_tasks)
+        if "stripes" in dataname:
+            multiplier -= 1  # one task does not have stripes
+        expected = C["relsgame_" + data_type + "_size"] * multiplier
         assert (
             array.shape[0] == expected
         ), f"Expected {dataname} to have {expected} examples, got {array.shape}"
