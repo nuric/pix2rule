@@ -194,7 +194,8 @@ class Evaluator(tf.keras.callbacks.Callback):
     def on_epoch_end(self, epoch: int, logs: Dict[str, float] = None):
         """Evaluate on every dataset and report metrics back."""
         logs = logs or dict()
-        report = {"train_" + k: v for k, v in logs.items()}
+        report: Dict[str, float] = {"epoch": float(epoch)}
+        report.update({"train_" + k: v for k, v in logs.items()})
         for dname, dset in self.datasets.items():
             if not (dname.startswith("test") or dname.startswith("validation")):
                 continue
@@ -208,8 +209,6 @@ class Evaluator(tf.keras.callbacks.Callback):
         self.last_time = time.time()
         # Save and parint report
         print(
-            "epoch",
-            epoch,
             " ".join([k + " " + "{:.3f}".format(v) for k, v in report.items()]),
         )
         # Add extra metrics back to logs so other callbacks can see it.

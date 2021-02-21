@@ -1,4 +1,4 @@
-"""Unification MLP."""
+"""Training script for pix2rule."""
 import logging
 import datetime
 from pathlib import Path
@@ -9,6 +9,7 @@ import numpy as np
 import absl.logging
 import tensorflow as tf
 import mlflow
+from mlflow.entities import RunStatus
 
 import configlib
 from configlib import config as C
@@ -62,7 +63,7 @@ parser.add_argument(
 # ---------------------------
 
 
-def train(run_name: str = None):
+def train(run_name: str = None, initial_epoch: int = 0):
     """Training loop for single run."""
     # Load data
     task_description, dsets = datasets.load_data()
@@ -80,17 +81,33 @@ def train(run_name: str = None):
         loss=model_dict["loss"],
         metrics=model_dict["metrics"],
     )
-    model.summary(line_length=180)
-    # ---
+    model_num_params = model.count_params()
+    logger.info("Model has %i many parameters.", model.count_params())
+    # ---------------------------
+    # Setup artifacts and check if we are resuming
     run_name = run_name or utils.hashing.dict_hash(C)
-    art_dir = Path(C["experiment_name"]) / run_name
+    art_dir = Path(C["data_dir"]) / "active_runs" / C["experiment_name"] / run_name
     art_dir.mkdir(parents=True, exist_ok=True)
     logger.info("Local artifact dir is %s", str(art_dir))
     # ---
+    saved_model_dir = art_dir / "models/latest_model"
+    if saved_model_dir.exists():
+        assert (
+            initial_epoch > 0
+        ), f"Expected initial to be greater than zero to resume training, got {initial_epoch}"
+        # We are resuming
+        logger.warning("Resuming training from %s", str(saved_model_dir))
+        model = tf.keras.models.load_model(str(saved_model_dir))
+        # Sanity check
+        assert (
+            model.count_params() == model_num_params
+        ), f"Expected {model_num_params} but after resuming got {model.count_params()}!"
+    # ---------------------------
+    # Setup callbacks
     callbacks = [
-        # tf.keras.callbacks.ModelCheckpoint(
-        #     str(art_dir) + "/models/latest_model", monitor="loss"
-        # ),
+        tf.keras.callbacks.ModelCheckpoint(
+            str(saved_model_dir), monitor="validation_loss"
+        ),
         # utils.callbacks.EarlyStopAtConvergence(C["converged_loss"]),
         utils.callbacks.TerminateOnNaN(),
         utils.callbacks.Evaluator(dsets),
@@ -109,12 +126,13 @@ def train(run_name: str = None):
         dsets["train"],
         epochs=C["max_steps"] // C["eval_every"],
         callbacks=callbacks,
+        initial_epoch=initial_epoch,
         steps_per_epoch=C["eval_every"],
         verbose=0,
     )
     # ---
     # Log post training artifacts
-    logging.info("Training completed.")
+    logger.info("Training completed.")
 
 
 def mlflow_train():
@@ -135,14 +153,18 @@ def mlflow_train():
     # ---
     # Check for past run, are we resuming?
     logger.info("Searching past run with configuration hash %s", config_hash)
-    run_id = None
+    run_id, initial_epoch = None, 0
     past_runs = mlflow.search_runs(
         filter_string=f"tags.config_hash = '{config_hash}'", max_results=1
     )
     if not past_runs.empty:
-        # run_id = past_runs["run_id"][0] ***
-        logger.info("Resuming run with id %s", run_id)
-        raise NotImplementedError("Resuming runs in the same experiment.")
+        run_id = past_runs["run_id"][0]
+        initial_epoch = int(past_runs["metrics.epoch"][0]) + 1
+        run_status = past_runs["status"][0]
+        assert not RunStatus.is_terminated(
+            RunStatus.from_string(run_status)
+        ), f"Cannot resume a {run_status} run."
+        logger.info("Should resume run with id %s from epoch %i", run_id, initial_epoch)
     # ---
     # Setup mlflow tracking
     mlflow_run = mlflow.start_run(run_id=run_id)
@@ -159,17 +181,17 @@ def mlflow_train():
     # The above code will raise SystemExit exception which we can catch
     # ---------------------------
     # Big data machine learning in the cloud
-    status = mlflow.entities.RunStatus.FINISHED
+    status = RunStatus.FINISHED
     try:
-        train(run_name=run_id)
+        train(run_name=run_id, initial_epoch=initial_epoch)
     except KeyboardInterrupt:
         logger.warning("Killing training on keyboard interrupt.")
-        status = mlflow.entities.RunStatus.KILLED
+        status = RunStatus.KILLED
     except SystemExit:
         logger.warning("Pausing training on system exit.")
-        status = mlflow.entities.RunStatus.SCHEDULED
+        status = RunStatus.SCHEDULED
     finally:
-        mlflow.end_run(mlflow.entities.RunStatus.to_string(status))
+        mlflow.end_run(RunStatus.to_string(status))
 
 
 if __name__ == "__main__":
