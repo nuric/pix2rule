@@ -37,6 +37,7 @@ parser.add_argument(
     default=datetime.datetime.now().strftime("%Y%m%d-%H%M%S"),
     help="Optional experiment name, default current datetime.",
 )
+parser.add_argument("--data_dir", default="data", help="Data folder.")
 parser.add_argument(
     "--max_steps",
     default=4000,

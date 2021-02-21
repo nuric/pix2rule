@@ -18,7 +18,6 @@ registry = {"sequences": sequences.load_data, "relsgame": relsgame.load_data}
 # ---------------------------
 # Configuration arguments
 parser = configlib.add_parser("Data config")
-parser.add_argument("--data_dir", default="data", help="Data folder.")
 parser.add_argument(
     "--dataset_name",
     default="sequences",
@@ -30,4 +29,5 @@ parser.add_argument(
 
 def load_data(name: str = None) -> Tuple[Dict[str, Any], Dict[str, tf.data.Dataset]]:
     """Load dataset by given name."""
+    assert "data_dir" in C, "No data_dir specified for datasets."
     return registry[name or C["dataset_name"]]()
