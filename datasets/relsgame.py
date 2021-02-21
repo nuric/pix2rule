@@ -228,8 +228,9 @@ def load_data() -> Tuple[  # pylint: disable=too-many-locals
     for dataname, array in dnpz.items():
         # dataname is test_pentos, train etc.
         data_type = dataname.split("_")[0]  # train, validation or test
-        multiplier = len(C["relsgame_tasks"] or all_tasks)
-        if "stripes" in dataname:
+        tasks = C["relsgame_tasks"] or all_tasks
+        multiplier = len(tasks)
+        if "stripes" in dataname and "colour_and_or_shape" in tasks:
             multiplier -= 1  # one task does not have stripes
         expected = C["relsgame_" + data_type + "_size"] * multiplier
         assert (
