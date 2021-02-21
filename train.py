@@ -19,7 +19,7 @@ import utils.exceptions
 import utils.hashing
 
 # Setup logging
-logging.getLogger().setLevel(logging.INFO)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 tf.get_logger().setLevel(logging.ERROR)
 
