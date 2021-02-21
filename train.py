@@ -6,6 +6,7 @@ import sys
 import signal
 
 import numpy as np
+import absl.logging
 import tensorflow as tf
 import mlflow
 
@@ -22,6 +23,7 @@ import utils.hashing
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 tf.get_logger().setLevel(logging.ERROR)
+absl.logging.set_verbosity(absl.logging.ERROR)
 
 # Disable scientific printing
 np.set_printoptions(suppress=True, precision=5, linewidth=180)
