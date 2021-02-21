@@ -28,7 +28,7 @@ class MergeFacts(tf.keras.layers.Layer):
         # This layer needs to be used with care as it assumes that every feature of every
         # object is already computed and we just need to concatenate them. That is, all facts
         # contain all objects and their features are concatenated.
-        facts = inputs[0]  # Start with left most and reduce towards right
+        facts = {**inputs[0]}  # Start with left most and reduce towards right
         for fact_dict in inputs[1:]:
             for key, tensor in fact_dict.items():
                 facts[key] = (
