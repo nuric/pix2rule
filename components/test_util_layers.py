@@ -27,7 +27,7 @@ class TestMergeFacts(tf.test.TestCase):
         """If there is one tensor, it returns that tensor."""
         facts1 = {"binary": tf.random.normal((4, 2))}
         res = util_layers.MergeFacts()([facts1])
-        self.assertEqual(facts1["binary"].shape, [4, 2])
+        self.assertEqual(res["binary"].shape, [4, 2])
 
     def test_missing_nullary_key(self):
         """Adds empty tensor for missing nullary key."""
