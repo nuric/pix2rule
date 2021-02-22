@@ -20,34 +20,34 @@ import utils.callbacks
 
 # ---------------------------
 # Setup configurable parameters of the model
-parser = configlib.add_parser("DNF Image Model Options.")
+add_argument = configlib.add_group("DNF Image Model Options", prefix="dnf")
 # ---
 # Image layer parameters
-parser.add_argument(
-    "--dnf_add_image_noise_stddev",
+add_argument(
+    "--add_image_noise_stddev",
     type=float,
     default=0.0,
     help="Optional noise to add image input before processing.",
 )
 configlib.add_arguments_dict(
-    parser, components.inputlayers.image.configurable, prefix="--dnf_image_"
+    add_argument, components.inputlayers.image.configurable, prefix="image"
 )
 # ---
 # Object selection
 configlib.add_arguments_dict(
-    parser, components.object_selection.configurable, prefix="--dnf_object_sel_"
+    add_argument, components.object_selection.configurable, prefix="object_sel"
 )
 # ---
 # DNF Layer options
-parser.add_argument(
-    "--dnf_hidden_predicates",
+add_argument(
+    "--hidden_predicates",
     type=int,
     nargs="*",
     default=[],
     help="Hidden extra predicates to be learned.",
 )
-parser.add_argument(
-    "--dnf_iterations",
+add_argument(
+    "--iterations",
     type=int,
     default=2,
     help="Number of inference steps to perform.",

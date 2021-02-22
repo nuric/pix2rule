@@ -11,36 +11,32 @@ logger = logging.getLogger(__name__)
 
 # ---------------------------
 # Configuration arguments
-parser = configlib.add_parser("Sequences Dataset config")
-parser.add_argument(
-    "--seq_length", default=4, type=int, help="Fixed length of symbol sequences."
-)
-parser.add_argument("--seq_symbols", default=8, type=int, help="Number of symbols.")
-parser.add_argument(
-    "--seq_tasks",
+add_argument = configlib.add_group("Sequences Dataset config", prefix="seq")
+add_argument("--length", default=4, type=int, help="Fixed length of symbol sequences.")
+add_argument("--seq_symbols", default=8, type=int, help="Number of symbols.")
+add_argument(
+    "--tasks",
     nargs="*",
     default=[],
     type=int,
     help="Tasks to generate, empty list for all.",
 )
-parser.add_argument(
-    "--seq_train_size",
+add_argument(
+    "--train_size",
     default=1000,
     type=int,
     help="Training size per task, 0 to use everything.",
 )
-parser.add_argument(
-    "--seq_test_split",
+add_argument(
+    "--test_split",
     default=0.1,
     type=float,
     help="Test split of generated data before training size.",
 )
-parser.add_argument(
-    "--seq_gen_size", default=1000, type=int, help="Random data tries per task."
-)
-parser.add_argument("--seq_batch_size", default=64, type=int, help="Data batch size.")
-parser.add_argument(
-    "--seq_one_hot_labels", action="store_true", help="One-hot encode sequence labels."
+add_argument("--gen_size", default=1000, type=int, help="Random data tries per task.")
+add_argument("--batch_size", default=64, type=int, help="Data batch size.")
+add_argument(
+    "--one_hot_labels", action="store_true", help="One-hot encode sequence labels."
 )
 
 # ---------------------------

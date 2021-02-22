@@ -21,38 +21,34 @@ all_types = ["pentos", "hexos", "stripes"]
 
 # ---------------------------
 # Configuration arguments
-parser = configlib.add_parser("Sequences Dataset config")
-parser.add_argument(
-    "--relsgame_tasks",
+add_argument = configlib.add_group("Relsgame Dataset config", prefix="relsgame")
+add_argument(
+    "--tasks",
     nargs="*",
     default=[],
     choices=all_tasks,
     help="Tasks to generate, empty list for all.",
 )
-parser.add_argument(
-    "--relsgame_train_size",
+add_argument(
+    "--train_size",
     default=1000,
     type=int,
     help="Training size per task, 0 to use everything.",
 )
-parser.add_argument(
-    "--relsgame_validation_size",
+add_argument(
+    "--validation_size",
     default=1000,
     type=int,
     help="Validation size per task, 0 to use everything.",
 )
-parser.add_argument(
-    "--relsgame_test_size",
+add_argument(
+    "--test_size",
     default=1000,
     type=int,
     help="Test size per task, 0 to use everything.",
 )
-parser.add_argument(
-    "--relsgame_batch_size", default=64, type=int, help="Data batch size."
-)
-parser.add_argument(
-    "--relsgame_one_hot_labels", action="store_true", help="One-hot encode labels."
-)
+add_argument("--batch_size", default=64, type=int, help="Data batch size.")
+add_argument("--one_hot_labels", action="store_true", help="One-hot encode labels.")
 
 
 def get_file(fname: str) -> str:

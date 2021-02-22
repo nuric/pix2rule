@@ -12,40 +12,40 @@ from components.inputlayers.categorical import OneHotCategoricalInput
 import components.inputlayers.image
 
 # Setup configurable parameters of the model
-parser = configlib.add_parser("Predinet Image Model Options.")
+add_argument = configlib.add_group("Predinet Image Model Options.", prefix="predinet")
 # ---
 # Image layer parameters
-parser.add_argument(
-    "--predinet_add_image_noise_stddev",
+add_argument(
+    "--add_image_noise_stddev",
     type=float,
     default=0.0,
     help="Optional noise to add image input before processing.",
 )
 configlib.add_arguments_dict(
-    parser, components.inputlayers.image.configurable, prefix="--predinet_image_"
+    add_argument, components.inputlayers.image.configurable, prefix="image"
 )
 # ---
 # Predinet Layer options
-parser.add_argument(
-    "--predinet_relations",
+add_argument(
+    "--relations",
     type=int,
     default=4,
     help="Number of relations to compute between features.",
 )
-parser.add_argument(
-    "--predinet_heads",
+add_argument(
+    "--heads",
     type=int,
     default=4,
     help="Number of relation heads.",
 )
-parser.add_argument(
-    "--predinet_key_size",
+add_argument(
+    "--key_size",
     type=int,
     default=4,
     help="Number of relation heads.",
 )
-parser.add_argument(
-    "--predinet_output_hidden_size",
+add_argument(
+    "--output_hidden_size",
     type=int,
     default=8,
     help="MLP hidden layer size.",

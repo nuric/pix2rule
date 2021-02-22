@@ -29,9 +29,9 @@ registry = {
 
 # ---------------------------
 # Model configuration / selection
-parser = configlib.add_parser("Global model options.")
-parser.add_argument(
-    "--model_name",
+add_argument = configlib.add_group("Global model options", prefix="model")
+add_argument(
+    "--name",
     default=next(iter(registry.keys())),
     choices=registry.keys(),
     help="Model name to train / evaluate.",

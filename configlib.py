@@ -1,5 +1,5 @@
 """Configuration for experiments."""
-from typing import Any, Dict
+from typing import Any, Dict, Callable
 import argparse
 import json
 import logging
@@ -18,21 +18,33 @@ parser.add_argument("--config_json", help="Configuration json and index to merge
 config: Dict[str, Any] = {}
 
 
-def add_parser(title: str, description: str = ""):
+def add_group(
+    title: str, prefix: str = "", description: str = ""
+) -> Callable[..., Any]:
     """Create a new context for arguments and return a handle."""
-    return parser.add_argument_group(title, description)
+    arg_group = parser.add_argument_group(title, description)
+    prefix = prefix + "_" if prefix else prefix
+
+    def add_argument_wrapper(name: str, **kwargs: Any):
+        """Wrapper for adding arguments into the group."""
+        # Strip -- if exists, refactor to removeprefix in 3.9+
+        if name.startswith("--"):
+            name = name[2:]
+        # Add splitting character
+        arg_group.add_argument("--" + prefix + name, **kwargs)
+
+    return add_argument_wrapper
 
 
 def add_arguments_dict(
-    existing_parser: argparse.ArgumentParser,
+    add_function: Callable[..., Any],
     arguments: Dict[str, Dict[str, Any]],
     prefix: str = "",
 ):
     """Add arguments from a dictionary into the parser with given prefix."""
-    if not prefix.startswith("--"):
-        prefix = "--" + prefix
+    prefix = prefix + "_" if prefix else prefix
     for argname, conf in arguments.items():
-        existing_parser.add_argument(prefix + argname, **conf)
+        add_function(prefix + argname, **conf)
 
 
 def parse(save_fname: str = "") -> str:

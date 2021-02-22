@@ -17,9 +17,9 @@ registry = {"sequences": sequences.load_data, "relsgame": relsgame.load_data}
 
 # ---------------------------
 # Configuration arguments
-parser = configlib.add_parser("Data config")
-parser.add_argument(
-    "--dataset_name",
+add_argument = configlib.add_group("Data config", prefix="dataset")
+add_argument(
+    "--name",
     default="sequences",
     choices=registry.keys(),
     help="Dataset name to train / evaluate.",

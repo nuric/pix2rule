@@ -32,31 +32,31 @@ np.set_printoptions(suppress=True, precision=5, linewidth=180)
 # ---------------------------
 
 # Arguments
-parser = configlib.add_parser("Pix2Rule options.")
-parser.add_argument(
+add_argument = configlib.add_group("Pix2Rule options", prefix="")
+add_argument(
     "--experiment_name",
     default=datetime.datetime.now().strftime("%Y%m%d-%H%M%S"),
     help="Optional experiment name, default current datetime.",
 )
-parser.add_argument("--data_dir", default="data", help="Data folder.")
-parser.add_argument(
+add_argument("--data_dir", default="data", help="Data folder.")
+add_argument(
     "--max_steps",
     default=4000,
     type=int,
     help="Maximum number of batch update steps.",
 )
-parser.add_argument(
+add_argument(
     "--converged_loss",
     default=0.01,
     type=float,
     help="Loss below which convergence is achieved.",
 )
-parser.add_argument(
+add_argument(
     "--eval_every", default=100, type=int, help="Evaluate model every N steps."
 )
-parser.add_argument("--debug", action="store_true", help="Enable debug mode.")
-parser.add_argument("--tracking_uri", help="MLflow tracking URI.")
-parser.add_argument(
+add_argument("--debug", action="store_true", help="Enable debug mode.")
+add_argument("--tracking_uri", help="MLflow tracking URI.")
+add_argument(
     "--learning_rate", type=float, default=0.001, help="Optimizer learning rate."
 )
 
