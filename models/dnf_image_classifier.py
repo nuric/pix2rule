@@ -16,6 +16,7 @@ import components.object_selection
 from components.dnf_layer import DNFLayer
 
 import utils.callbacks
+import utils.factory
 
 
 # ---------------------------
@@ -55,18 +56,6 @@ add_argument(
 # ---------------------------
 
 
-def get_and_init(module, prefix: str, **kwargs) -> tf.keras.layers.Layer:
-    """Get and initialise a layer with a given prefix based on configuration."""
-    layer_class = getattr(module, C[prefix + "layer_name"])
-    config_args = {
-        argname[len(prefix) :]: value
-        for argname, value in C.items()
-        if argname.startswith(prefix) and not argname.endswith("layer_name")
-    }
-    config_args.update(kwargs)
-    return layer_class(**config_args)
-
-
 def process_image(image: tf.Tensor) -> Dict[str, tf.Tensor]:
     """Process given image input to extract facts."""
     # image (B, W, H, C)
@@ -76,15 +65,15 @@ def process_image(image: tf.Tensor) -> Dict[str, tf.Tensor]:
         image = L.GaussianNoise(C["dnf_add_image_noise_stddev"])(image)
     # ---------------------------
     # Process the images
-    image_layer = get_and_init(
-        components.inputlayers.image, "dnf_image_", name="image_layer"
+    image_layer = utils.factory.get_and_init(
+        components.inputlayers.image, C, "dnf_image_", name="image_layer"
     )
     raw_objects = image_layer(image)  # (B, W, H, E)
     raw_objects = SpacialFlatten()(raw_objects)  # (B, O, E)
     # ---------------------------
     # Select a subset of objects
-    obj_selector = get_and_init(
-        components.object_selection, "dnf_object_sel_", name="object_selector"
+    obj_selector = utils.factory.get_and_init(
+        components.object_selection, C, "dnf_object_sel_", name="object_selector"
     )
     selected_objects = obj_selector(raw_objects)
     # {'object_scores': (B, N), 'object_atts': (B, N, O), 'objects': (B, N, E)}

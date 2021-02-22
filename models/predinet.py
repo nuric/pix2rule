@@ -11,6 +11,8 @@ from components.util_layers import SpacialFlatten
 from components.inputlayers.categorical import OneHotCategoricalInput
 import components.inputlayers.image
 
+import utils.factory
+
 # Setup configurable parameters of the model
 add_argument = configlib.add_group("Predinet Image Model Options.", prefix="predinet")
 # ---
@@ -179,18 +181,6 @@ class PrediNet(L.Layer):
         return {"output": output, "att1": att1, "att2": att2}
 
 
-def get_and_init(module, prefix: str, **kwargs) -> tf.keras.layers.Layer:
-    """Get and initialise a layer with a given prefix based on configuration."""
-    layer_class = getattr(module, C[prefix + "layer_name"])
-    config_args = {
-        argname[len(prefix) :]: value
-        for argname, value in C.items()
-        if argname.startswith(prefix) and not argname.endswith("layer_name")
-    }
-    config_args.update(kwargs)
-    return layer_class(**config_args)
-
-
 def build_model(  # pylint: disable=too-many-locals
     task_description: Dict[str, Any]
 ) -> Dict[str, Any]:
@@ -207,8 +197,8 @@ def build_model(  # pylint: disable=too-many-locals
         )
         input_layers[input_name] = input_layer
         if input_desc["type"] == "image":
-            image_layer = get_and_init(
-                components.inputlayers.image, "predinet_image_", name="image_layer"
+            image_layer = utils.factory.get_and_init(
+                components.inputlayers.image, C, "predinet_image_", name="image_layer"
             )
             raw_objects = image_layer(input_layer)  # (B, W, H, E)
             raw_objects = SpacialFlatten()(raw_objects)  # (B, O, E)
