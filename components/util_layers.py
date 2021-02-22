@@ -19,7 +19,7 @@ class SpacialFlatten(tf.keras.layers.Layer):
         # we just lose dimension size information, so let's check if we know the dimensions
         # to reshape, if so then we can take their product
         middle_dim = -1
-        if all([i is not None for i in inputs.shape[1:-1]]):
+        if all(i is not None for i in inputs.shape[1:-1]):
             # We know all the dimensions
             middle_dim = tf.reduce_prod(inputs.shape[1:-1])
         new_shape = tf.stack([batch_size, middle_dim, features_size], 0)  # [B, -1, X]

@@ -25,7 +25,7 @@ def set_hash(hset: Union[List[Any], Set[Any]]) -> str:
     # convert everything to a sorted list
     # but we can only sort of same comparable types
     ttype = type(next(iter(hset)))
-    if not all([isinstance(i, ttype) for i in hset]):
+    if not all(isinstance(i, ttype) for i in hset):
         raise ValueError("Cannot hash set with different types.")
     sorted_list = sorted(hset)
     return list_hash(sorted_list)
