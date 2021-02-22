@@ -55,33 +55,26 @@ add_argument(
 # ---------------------------
 
 
-class PrediNet(L.Layer):
+class PrediNet(L.Layer):  # pylint: disable=too-many-instance-attributes
     """PrediNet model for supervised learning."""
 
-    def __init__(
+    def __init__(  # pylint: disable=too-many-arguments
         self,
-        relations=4,
-        heads=4,
-        key_size=12,
-        output_hidden_size=8,
-        num_classes=2,
+        relations: int = 4,
+        heads: int = 4,
+        key_size: int = 12,
+        output_hidden_size: int = 8,
+        num_classes: int = 2,
         **kwargs,
     ):
         """Initialise the PrediNet model.
 
         Args:
-          resolution: a scalar (int). Resolution of raw images.
-          conv_out_size: a scalar (int). Downsampled image resolution obtained at
-            the output of the convolutional layer.
-          filter_size: a scalar (int). Filter size for the convnet.
-          stride: a scalar (int). Stride size for the convnet.
-          channels: a scalar (int). Number of channels of the convnet.
           relations: a scalar (int). Number of relations computed by each head.
           heads: a scalar (int). Number of PrediNet heads.
           key_size: a scalar (int). Size of the keys.
           output_hidden_size: a scalar (int). Size of hidden layer in output MLP.
           num_classes: a scalar (int). Number of classes in the output label.
-          num_tasks: a scalar (int). Max number of possible tasks.
         """
         super().__init__(**kwargs)
         # ---------------------------
@@ -99,7 +92,7 @@ class PrediNet(L.Layer):
         self.output_hidden = L.Dense(self.output_hidden_size, activation="relu")
         self.output_layer = L.Dense(self.num_classes)
 
-    def call(self, inputs, **kwargs):
+    def call(self, inputs, **kwargs):  # pylint: disable=too-many-locals
         """Applies model to inputs x yielding a label."""
         # inputs {'objects': (B, O, E), 'task_id': (B, T)}
         # task_id is optional
@@ -179,6 +172,20 @@ class PrediNet(L.Layer):
         output = self.output_layer(hidden_activations)
         # ---------------------------
         return {"output": output, "att1": att1, "att2": att2}
+
+    def get_config(self):
+        """Serialisable configuration dictionary."""
+        config = super().get_config()
+        config.update(
+            {
+                "relations": self.relations,
+                "heads": self.heads,
+                "key_size": self.key_size,
+                "output_hidden_size": self.output_hidden_size,
+                "num_classes": self.num_classes,
+            }
+        )
+        return config
 
 
 def build_model(  # pylint: disable=too-many-locals
