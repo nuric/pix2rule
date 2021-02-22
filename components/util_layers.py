@@ -15,7 +15,14 @@ class SpacialFlatten(tf.keras.layers.Layer):
         # of features is known before hand.
         features_size = inputs.shape[-1]  # X
         assert features_size is not None, "Last dimension to spacial flatten is None."
-        new_shape = tf.stack([batch_size, -1, features_size], 0)  # [B, -1, X]
+        # Handle dimension erasure case, if we use -1 and all the dimensions are known
+        # we just lose dimension size information, so let's check if we know the dimensions
+        # to reshape, if so then we can take their product
+        middle_dim = -1
+        if all([i is not None for i in inputs.shape[1:-1]]):
+            # We know all the dimensions
+            middle_dim = tf.reduce_prod(inputs.shape[1:-1])
+        new_shape = tf.stack([batch_size, middle_dim, features_size], 0)  # [B, -1, X]
         return tf.reshape(inputs, new_shape)  # (B, ., X)
 
 
