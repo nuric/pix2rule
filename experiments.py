@@ -1,23 +1,25 @@
 """Experiment configuration generator."""
 from typing import Any, Dict, List
-import argparse
 import json
 import pprint
 import random
 import sys
 from pathlib import Path
 
+import configlib
+
 import utils.hashing
 import utils.hyperrun as hp
 
+# This will import all parameters as well
+import train  # pylint: disable=unused-import
+import datasets
+
 # ---------------------------
-# Configuration parameters
-parser = argparse.ArgumentParser(
-    description=__doc__,
-    formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-)
-parser.add_argument("--data_dir", default="data", help="Folder for experiment data.")
-ARGS = parser.parse_args()
+# Parse configuration parameters
+configlib.parse()
+C = configlib.config
+print(f"There are {len(C.keys())} many configuration parameters.")
 # ---------------------------
 
 all_experiments: List[Dict[str, Any]] = list()
@@ -30,12 +32,12 @@ relsgame_exp = {
     "learning_rate": [0.001],
     "dataset_name": "relsgame",
     "relsgame_tasks": [
-        "same",
-        "between",
-        "occurs",
-        "xoccurs",
-        "colour_and_or_shape",
-        "",
+        ["same"],
+        ["between"],
+        ["occurs"],
+        ["xoccurs"],
+        ["colour_and_or_shape"],
+        [],
     ],
     "relsgame_train_size": [10000, 1000, 100, 10],
     "relsgame_validation_size": 1000,
@@ -68,7 +70,18 @@ configs_index = {utils.hashing.dict_hash(exp): exp for exp in all_experiments}
 # Pre-experiment data generation if any
 # ---------------------------
 # Write configuration file
-configs_path = Path(ARGS.data_dir) / "experiments.json"
+configs_path = Path(C["data_dir"]) / "experiments.json"
 print("Writing configurations to", configs_path)
 with configs_path.open("w") as configs_file:
     json.dump(configs_index, configs_file, indent=4)
+# ---------------------------
+# Generate data for the experiments
+data_paths: List[str] = list()
+for exp in all_experiments:
+    C.update(exp)
+    data_paths.append(datasets.get_dataset().generate_data())
+print("Generated data files:")
+pprint.pprint(data_paths)
+print(f"Total of {len(data_paths)}.")
+# ---------------------------
+print("Done")
