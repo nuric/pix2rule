@@ -112,8 +112,14 @@ def downsize_images(images: np.ndarray) -> np.ndarray:
     return images[:, cidxs[:, None], cidxs]  # (N, 12, 12, 3)
 
 
-def generate_data():  # pylint: disable=too-many-locals
+def generate_data() -> str:  # pylint: disable=too-many-locals
     """Load compressed shortened versions of data files."""
+    # ---------------------------
+    # Check if data already exists
+    cpath = get_compressed_path()
+    if cpath.exists():
+        return str(cpath)
+    logger.info("Generating compressed data file: %s", str(cpath))
     # ---------------------------
     # Collect all the files
     dfiles = [
@@ -199,22 +205,19 @@ def generate_data():  # pylint: disable=too-many-locals
         for dsetname, dset in all_arrs.items()
         for iname, arrs in dset.items()
     }
-    cpath = str(get_compressed_path())
-    logger.info("Creating %s with keys: %s", cpath, str(compressed_arrs.keys()))
+    logger.info("Creating %s with keys: %s", str(cpath), str(compressed_arrs.keys()))
     np.savez_compressed(cpath, **compressed_arrs)
+    return str(cpath)
 
 
 def load_data() -> Tuple[  # pylint: disable=too-many-locals
     Dict[str, Any], Dict[str, tf.data.Dataset]
 ]:
     """Load and process relations game dataset."""
-    cpath = get_compressed_path()
-    if not cpath.exists():
-        logger.warning("Given compressed file does not exist: %s", str(cpath))
-        generate_data()
+    cpath = generate_data()
     # ---------------------------
     # Load the compressed data file
-    dnpz = np.load(str(cpath))  # {'train_images': .., 'test_stripes_images': ...
+    dnpz = np.load(cpath)  # {'train_images': .., 'test_stripes_images': ...
     dsetnames = {
         "_".join(k.split("_")[:2]) for k in dnpz.files if k.startswith("test")
     }  # [test_stripes, ...]

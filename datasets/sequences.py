@@ -104,6 +104,12 @@ def gen_all() -> Dict[str, np.ndarray]:
 
 # ---------------------------
 
+
+def generate_data() -> str:
+    """Generate data and save for repeated runs."""
+    raise NotImplementedError("Data saving for sequences dataset.")
+
+
 # Data loading
 def load_data() -> Tuple[Dict[str, Any], Dict[str, tf.data.Dataset]]:
     """Load and prepare Sequences data."""

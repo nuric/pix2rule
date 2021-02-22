@@ -12,7 +12,7 @@ from . import relsgame
 # Dataset registry
 # registry = {d.__name__.split(".")[-1]: d for d in [sequences, relsgame]}
 # type checker seems to not recognise what is going above
-registry = {"sequences": sequences.load_data, "relsgame": relsgame.load_data}
+registry = {"sequences": sequences, "relsgame": relsgame}
 # ---------------------------
 
 # ---------------------------
@@ -20,14 +20,14 @@ registry = {"sequences": sequences.load_data, "relsgame": relsgame.load_data}
 add_argument = configlib.add_group("Data config", prefix="dataset")
 add_argument(
     "--name",
-    default="sequences",
+    default="relsgame",
     choices=registry.keys(),
     help="Dataset name to train / evaluate.",
 )
 # ---------------------------
 
 
-def load_data(name: str = None) -> Tuple[Dict[str, Any], Dict[str, tf.data.Dataset]]:
-    """Load dataset by given name."""
+def get_dataset(name: str = ""):
+    """Get dataset module by name, defaults to argument parameter."""
     assert "data_dir" in C, "No data_dir specified for datasets."
-    return registry[name or C["dataset_name"]]()
+    return registry[name or C["dataset_name"]]

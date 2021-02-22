@@ -66,7 +66,7 @@ add_argument(
 def train(run_name: str = None, initial_epoch: int = 0):
     """Training loop for single run."""
     # Load data
-    task_description, dsets = datasets.load_data()
+    task_description, dsets = datasets.get_dataset().load_data()
     logger.info("Loaded dataset: %s", str(task_description))
     # ---------------------------
     # Setup model
