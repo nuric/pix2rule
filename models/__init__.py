@@ -7,6 +7,7 @@ import configlib
 from configlib import config as C
 
 from . import dnf_image_classifier
+from . import predinet
 
 # ---------------------------
 # We expose a list of custom layers for saving and loading models
@@ -22,6 +23,7 @@ custom_layers.update(components.custom_layers)
 # type checker seems to not recognise what is going above
 registry = {
     "dnf_image_classifier": dnf_image_classifier.build_model,
+    "predinet": predinet.build_model,
 }
 # ---------------------------
 
