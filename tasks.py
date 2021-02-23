@@ -21,9 +21,9 @@ def style(cline, write=False):
 def lint(cline):
     """Check for linting errors in the source code."""
     print("Linting with pylint.")
-    cline.run(r"find . -iname '*.py' -not -path '*/\.*' | xargs python3 -m pylint -j 0")
+    cline.run(r"git ls-files '*.py' | xargs python3 -m pylint -j 0")
     print("Type checking with mypy.")
-    cline.run("python3 -m mypy .")
+    cline.run(r"git ls-files '*.py' | xargs python3 -m mypy")
 
 
 @task
@@ -37,5 +37,5 @@ def test(cline):
 def build(cline):
     """Build project code."""
     print("Loading summary.")
-    cline.run(r"find . -iname '*.py' -not -path '*/\.*' | xargs wc -l")
+    cline.run(r"git ls-files '*.py' | xargs wc -l")
     print("Build complete.")
