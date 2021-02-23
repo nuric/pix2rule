@@ -73,7 +73,7 @@ def parse(save_fname: str = "") -> str:
     return utils.hashing.dict_hash(config)
 
 
-def save_config(save_fname: str = ""):
+def save_config(save_fname: str = "config.json"):
     """Save config file as a json."""
     assert save_fname.endswith(
         ".json"
