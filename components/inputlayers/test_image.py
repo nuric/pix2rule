@@ -35,3 +35,14 @@ class TestCommonImageInput(tf.test.TestCase):
                 processed_images = image_layer(hidden_size=42)(input_images)
                 self.assertEqual(processed_images.shape[0], 7)
                 self.assertEqual(processed_images.shape[-1], 42)
+
+    def test_position_addition(self):
+        """All image input layers can add position to final output."""
+        # Batch of 7 images
+        input_images = tf.random.uniform((7, 5, 5, 3), dtype=tf.float32)
+        for name, image_layer in all_image_layers.items():
+            with self.subTest(name):
+                processed_images = image_layer(hidden_size=17, with_position=True)(
+                    input_images
+                )
+                self.assertEqual(processed_images.shape[-1], 21)
