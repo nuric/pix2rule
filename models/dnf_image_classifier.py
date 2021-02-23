@@ -24,12 +24,6 @@ import utils.factory
 add_argument = configlib.add_group("DNF Image Model Options", prefix="dnf")
 # ---
 # Image layer parameters
-add_argument(
-    "--add_image_noise_stddev",
-    type=float,
-    default=0.0,
-    help="Optional noise to add image input before processing.",
-)
 configlib.add_arguments_dict(
     add_argument, components.inputlayers.image.configurable, prefix="image"
 )
@@ -59,10 +53,6 @@ add_argument(
 def process_image(image: tf.Tensor) -> Dict[str, tf.Tensor]:
     """Process given image input to extract facts."""
     # image (B, W, H, C)
-    # ---------------------------
-    # Optional noise
-    if C["dnf_add_image_noise_stddev"] > 0:
-        image = L.GaussianNoise(C["dnf_add_image_noise_stddev"])(image)
     # ---------------------------
     # Process the images
     image_layer = utils.factory.get_and_init(

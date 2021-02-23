@@ -23,16 +23,37 @@ configurable = {
         "choices": ["relu", "sigmoid", "tanh"],
         "help": "Activation of hidden and final layer of image pipeline.",
     },
+    "noise_stddev": {
+        "type": float,
+        "default": 0.0,
+        "help": "Standard deviation of added noise to image input.",
+    },
 }
 
 
 class BaseImageInput(L.Layer):
     """Base class for image input, often children class will be CNNs."""
 
-    def __init__(self, hidden_size: int = 32, activation: str = "relu", **kwargs):
+    def __init__(
+        self,
+        hidden_size: int = 32,
+        activation: str = "relu",
+        noise_stddev: float = 0.0,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
         self.hidden_size = hidden_size
         self.activation = activation
+        assert (
+            noise_stddev >= 0
+        ), f"Noise stddev needs to be non-negative got {noise_stddev}."
+        self.noise_stddev = noise_stddev
+        self.noise_layer = L.GaussianNoise(noise_stddev)
+
+    def call(self, inputs, **kwargs):
+        """Process the provided image."""
+        # inputs (B, W, H, C)
+        return self.noise_layer(inputs) if self.noise_stddev > 0.0 else inputs
 
     def get_config(self):
         """Serialisable configuration dictionary."""
@@ -60,6 +81,7 @@ class RelationsGameImageInput(BaseImageInput):
     def call(self, inputs, **kwargs):
         """Process the provided image."""
         # inputs (B, 12, 12, 3)
+        inputs = super().call(inputs)  # (B, 12, 12, 3)
         return self.cnn_l1(inputs)  # (B, 5, 5, 32)
 
 
@@ -95,4 +117,5 @@ class RelationsGamePixelImageInput(BaseImageInput):
     def call(self, inputs, **kwargs):
         """Process the provided image."""
         # inputs (B, 12, 12, 3)
+        inputs = super().call(inputs)  # (B, 12, 12, 3)
         return self.encoder_cnn(inputs)  # (B, 12, 12, H)

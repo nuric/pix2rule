@@ -17,12 +17,6 @@ import utils.factory
 add_argument = configlib.add_group("Predinet Image Model Options.", prefix="predinet")
 # ---
 # Image layer parameters
-add_argument(
-    "--add_image_noise_stddev",
-    type=float,
-    default=0.0,
-    help="Optional noise to add image input before processing.",
-)
 configlib.add_arguments_dict(
     add_argument, components.inputlayers.image.configurable, prefix="image"
 )
