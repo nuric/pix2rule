@@ -6,6 +6,7 @@ import random
 import sys
 from pathlib import Path
 
+import mlflow
 import configlib
 
 import utils.hashing
@@ -19,7 +20,8 @@ import datasets
 # Parse configuration parameters
 configlib.parse()
 C = configlib.config
-configlib.save_config(str(Path(C["data_dir"]) / "defaults.json"))
+data_dir = Path(C["data_dir"])
+configlib.save_config(str(data_dir / "defaults.json"))
 print(f"There are {len(C.keys())} many configuration parameters.")
 # ---------------------------
 
@@ -96,7 +98,7 @@ configs_index = {utils.hashing.dict_hash(exp): exp for exp in all_experiments}
 # Pre-experiment data generation if any
 # ---------------------------
 # Write configuration file
-configs_path = Path(C["data_dir"]) / "experiments.json"
+configs_path = data_dir / "experiments.json"
 print("Writing configurations to", configs_path)
 with configs_path.open("w") as configs_file:
     json.dump(configs_index, configs_file, indent=4)
@@ -109,5 +111,11 @@ for exp in all_experiments:
 print("Generated data files:")
 pprint.pprint(data_paths)
 print(f"Total of {len(data_paths)}.")
+# ---------------------------
+# Create mlflow experiment
+mlflow.set_tracking_uri(str(data_dir / "mlruns"))
+for exp_name in set(exp["experiment_name"] for exp in all_experiments):
+    exp_id = mlflow.create_experiment(exp_name)
+    print("Created mlflow experiment:", exp_name, exp_id)
 # ---------------------------
 print("Done")
