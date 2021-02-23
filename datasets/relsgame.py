@@ -27,13 +27,13 @@ add_argument(
     nargs="*",
     default=[],
     choices=all_tasks,
-    help="Tasks to generate, empty list for all.",
+    help="Task names to generate, empty list for all.",
 )
 add_argument(
     "--train_size",
     default=1000,
     type=int,
-    help="Training size per task, 0 to use everything.",
+    help="Relations game training size per task, 0 to use everything.",
 )
 add_argument(
     "--validation_size",

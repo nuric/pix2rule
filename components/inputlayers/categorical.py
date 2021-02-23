@@ -12,12 +12,7 @@ class OneHotCategoricalInput(tf.keras.layers.Layer):
     def call(self, inputs: tf.Tensor, **kwargs):
         """Forward pass which encodes inputs as one-hot."""
         # inputs (B,)
-        facts = {
-            "nullary": tf.one_hot(
-                inputs, self.num_categories, on_value=1.0, off_value=0.0
-            )
-        }
-        return facts
+        return tf.one_hot(inputs, self.num_categories, on_value=1.0, off_value=0.0)
 
     def get_config(self):
         """Serialisable configuration dictionary."""

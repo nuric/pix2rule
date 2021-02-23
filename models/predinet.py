@@ -182,46 +182,46 @@ class PrediNet(L.Layer):  # pylint: disable=too-many-instance-attributes
         return config
 
 
+def process_image(image: tf.Tensor, _: Dict[str, Any]) -> tf.Tensor:
+    """Process given image input extract objects."""
+    # image (B, W, H, C)
+    image_layer = utils.factory.get_and_init(
+        components.inputlayers.image, C, "predinet_image_", name="image_layer"
+    )
+    raw_objects = image_layer(image)  # (B, W, H, E)
+    return SpacialFlatten()(raw_objects)  # (B, O, E)
+
+
+def process_task_id(task_id: tf.Tensor, input_desc: Dict[str, Any]) -> tf.Tensor:
+    """Process given task ids."""
+    return OneHotCategoricalInput(input_desc["num_categories"])(task_id)  # (B, T)
+
+
 def build_model(  # pylint: disable=too-many-locals
     task_description: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Build the predinet model."""
     # ---------------------------
     # Setup and process inputs
-    input_layers = dict()
-    processed = dict()
-    for input_name, input_desc in task_description["inputs"].items():
-        input_layer = L.Input(
-            shape=input_desc["shape"][1:],
-            name=input_name,
-            dtype=input_desc["dtype"].name,
-        )
-        input_layers[input_name] = input_layer
-        if input_desc["type"] == "image":
-            image_layer = utils.factory.get_and_init(
-                components.inputlayers.image, C, "predinet_image_", name="image_layer"
-            )
-            raw_objects = image_layer(input_layer)  # (B, W, H, E)
-            raw_objects = SpacialFlatten()(raw_objects)  # (B, O, E)
-            processed["objects"] = raw_objects
-        elif input_desc["type"] == "categorical":
-            processed["task_id"] = OneHotCategoricalInput(input_desc["num_categories"])(
-                input_layer
-            )
+    processors = {"image": process_image, "task_id": process_task_id}
+    predinet_inputs = utils.factory.create_input_layers(task_description, processors)
     # ---------------------------
     # Passed processed inputs to Predinet
+    input_dict = {"objects": predinet_inputs["processed"]["image"]}
+    if "task_id" in predinet_inputs["processed"]:
+        input_dict["task_id"] = predinet_inputs["processed"]["task_id"]
     output_dict = PrediNet(
         relations=C["predinet_relations"],
         heads=C["predinet_heads"],
         key_size=C["predinet_key_size"],
         output_hidden_size=C["predinet_output_hidden_size"],
         num_classes=task_description["output"]["num_categories"],
-    )(processed)
+    )(input_dict)
     output_dict = ReportLayer()(output_dict)
     # ---------------------------
     # Create model instance
     model = tf.keras.Model(
-        inputs=input_layers,
+        inputs=predinet_inputs["input_layers"],
         outputs=output_dict["output"],
         name="predinet_model",
     )

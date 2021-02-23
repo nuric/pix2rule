@@ -1,7 +1,6 @@
 """Rule learning model for relsgame dataset."""
 from typing import Dict, Any
 import tensorflow as tf
-import tensorflow.keras.layers as L
 
 import configlib
 from configlib import config as C
@@ -50,7 +49,7 @@ add_argument(
 # ---------------------------
 
 
-def process_image(image: tf.Tensor) -> Dict[str, tf.Tensor]:
+def process_image(image: tf.Tensor, _: Dict[str, Any]) -> Dict[str, tf.Tensor]:
     """Process given image input to extract facts."""
     # image (B, W, H, C)
     # ---------------------------
@@ -75,30 +74,22 @@ def process_image(image: tf.Tensor) -> Dict[str, tf.Tensor]:
     return facts
 
 
+def process_task_id(task_id: tf.Tensor, input_desc: Dict[str, Any]) -> Dict[str, Any]:
+    """Process given task ids."""
+    encoded = OneHotCategoricalInput(input_desc["num_categories"])(task_id)  # (B, T)
+    return {"nullary": encoded}  # facts
+
+
 def build_model(  # pylint: disable=too-many-locals
     task_description: Dict[str, Any]
 ) -> Dict[str, Any]:
-    """Build the trainable model."""
+    """Build the DNF trainable model."""
     # ---------------------------
     # Setup and process inputs
-    input_layers = dict()
-    all_facts = list()
-    for input_name, input_desc in task_description["inputs"].items():
-        input_layer = L.Input(
-            shape=input_desc["shape"][1:],
-            name=input_name,
-            dtype=input_desc["dtype"].name,
-        )
-        input_layers[input_name] = input_layer
-        if input_desc["type"] == "image":
-            facts = process_image(input_layer)
-            # {'unary': (B, N, P1), 'binary': (B, N, N-1, P2)}
-        elif input_desc["type"] == "categorical":
-            facts = OneHotCategoricalInput(input_desc["num_categories"])(input_layer)
-            # {'nullary': (B, T)}
-        all_facts.append(facts)
+    processors = {"image": process_image, "task_id": process_task_id}
+    dnf_inputs = utils.factory.create_input_layers(task_description, processors)
     # ---------------------------
-    facts = MergeFacts()(all_facts)
+    facts = MergeFacts()(list(dnf_inputs["processed"].values()))
     # {'nullary': (B, P0), 'unary': (B, N, P1), 'binary': (B, N, N-1, P2)}
     facts = ReportLayer()(facts)
     # ---------------------------
@@ -125,7 +116,7 @@ def build_model(  # pylint: disable=too-many-locals
     # ---------------------------
     # Create model with given inputs and outputs
     model = tf.keras.Model(
-        inputs=input_layers,
+        inputs=dnf_inputs["input_layers"],
         outputs=predictions,
         name="relsgame_model",
     )
