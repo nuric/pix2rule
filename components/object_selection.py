@@ -1,4 +1,5 @@
 """This module contains layers for object selection."""
+from typing import Dict, Any
 import tensorflow as tf
 import tensorflow.keras.layers as L
 import tensorflow_probability as tfp
@@ -7,7 +8,7 @@ import tensorflow_probability as tfp
 # so we can change them as hyperparameters later on.
 # We follow a tell don't ask approach here and each
 # module tells what can be configured when used.
-configurable = {
+configurable: Dict[str, Dict[str, Any]] = {
     "layer_name": {
         "type": str,
         "default": "RelaxedObjectSelection",
