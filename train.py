@@ -55,7 +55,7 @@ add_argument(
     "--eval_every", default=100, type=int, help="Evaluate model every N steps."
 )
 add_argument("--debug", action="store_true", help="Enable debug mode.")
-add_argument("--tracking_uri", help="MLflow tracking URI.")
+add_argument("--tracking_uri", default="data/mlruns", help="MLflow tracking URI.")
 add_argument(
     "--learning_rate", type=float, default=0.001, help="Optimizer learning rate."
 )
