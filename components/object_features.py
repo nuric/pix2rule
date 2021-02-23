@@ -1,12 +1,32 @@
 """Layers to compute object features for predicate grounding."""
+from typing import Dict, Any
 import tensorflow as tf
 import tensorflow.keras.layers as L
+
+configurable: Dict[str, Dict[str, Any]] = {
+    "layer_name": {
+        "type": str,
+        "default": "LinearObjectFeatures",
+        "choices": ["LinearObjectFeatures"],
+        "help": "Selection layer to use.",
+    },
+    "unary_size": {
+        "type": int,
+        "default": 4,
+        "help": "Number of unary predicates for objects.",
+    },
+    "binary_size": {
+        "type": int,
+        "default": 8,
+        "help": "Number of binary predicates for objects.",
+    },
+}
 
 
 class LinearObjectFeatures(L.Layer):
     """Computes linear object features."""
 
-    def __init__(self, unary_size: int = 4, binary_size: int = 16, **kwargs):
+    def __init__(self, unary_size: int = 4, binary_size: int = 8, **kwargs):
         super().__init__(**kwargs)
         self.unary_size = unary_size
         self.binary_size = binary_size

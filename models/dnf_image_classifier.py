@@ -10,7 +10,7 @@ from components.util_layers import MergeFacts, SpacialFlatten
 from components.ops import flatten_concat
 from components.inputlayers.categorical import OneHotCategoricalInput
 import components.inputlayers.image
-from components.object_features import LinearObjectFeatures
+import components.object_features
 import components.object_selection
 from components.dnf_layer import DNFLayer
 
@@ -30,6 +30,11 @@ configlib.add_arguments_dict(
 # Object selection
 configlib.add_arguments_dict(
     add_argument, components.object_selection.configurable, prefix="object_sel"
+)
+# ---
+# Object features
+configlib.add_arguments_dict(
+    add_argument, components.object_features.configurable, prefix="object_feat"
 )
 # ---
 # DNF Layer options
@@ -69,7 +74,10 @@ def process_image(image: tf.Tensor, _: Dict[str, Any]) -> Dict[str, tf.Tensor]:
     selected_objects = ReportLayer()(selected_objects)
     # ---------------------------
     # Extract unary and binary features
-    facts: Dict[str, tf.Tensor] = LinearObjectFeatures()(selected_objects["objects"])
+    object_feat = utils.factory.get_and_init(
+        components.object_features, C, "dnf_object_feat_", name="object_features"
+    )
+    facts: Dict[str, tf.Tensor] = object_feat(selected_objects["objects"])
     # {'unary': (B, N, P1), 'binary': (B, N, N-1, P2)}
     return facts
 
