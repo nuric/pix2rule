@@ -181,9 +181,10 @@ def mlflow_train():
     # The above code will raise SystemExit exception which we can catch
     # ---------------------------
     # Big data machine learning in the cloud
-    status = RunStatus.FINISHED
+    status = RunStatus.FAILED
     try:
         train(run_name=run_id, initial_epoch=initial_epoch)
+        status = RunStatus.FINISHED
     except KeyboardInterrupt:
         logger.warning("Killing training on keyboard interrupt.")
         status = RunStatus.KILLED
