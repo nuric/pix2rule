@@ -21,6 +21,7 @@ configurable: Dict[str, Dict[str, Any]] = {
     },
     "activation": {
         "type": str,
+        "default": "relu",
         "choices": ["relu", "sigmoid", "tanh"],
         "help": "Activation of hidden and final layer of image pipeline.",
     },
