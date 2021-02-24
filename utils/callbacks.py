@@ -250,9 +250,9 @@ class ArtifactSaver(tf.keras.callbacks.Callback):
         # ---------------------------
         # Save artifacts to mlflow
         mlflow.log_artifacts(str(art_dir))
-        mlflow.keras.log_model(
-            self.model, "mlflow_model", custom_objects=models.custom_layers
-        )
+        # mlflow.keras.log_model(
+        #     self.model, "mlflow_model", custom_objects=models.custom_layers
+        # )
         # ---------------------------
         # Clean up
         shutil.rmtree(str(art_dir))

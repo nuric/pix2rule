@@ -2,20 +2,11 @@
 from typing import Dict, Any
 import tensorflow as tf
 
-import components
 import configlib
 from configlib import config as C
 
 from . import dnf_image_classifier
 from . import predinet
-
-# ---------------------------
-# We expose a list of custom layers for saving and loading models
-# custom_layers: Dict[str, type] = {l.__name__: l for l in [dnf_layer.DNFLayer]}
-custom_layers: Dict[str, type] = {}
-# Merge into custom component layers
-custom_layers.update(components.custom_layers)
-# ---------------------------
 
 # ---------------------------
 # Model registry
