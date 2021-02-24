@@ -45,7 +45,9 @@ run_status: Dict[str, Set[str]] = dict()
 for stat in RunStatus.all_status():
     stat_str = RunStatus.to_string(stat)
     filtered_runs = all_runs.loc[all_runs["status"] == stat_str]
-    run_status[stat_str] = set(filtered_runs["params.config_json"].values)
+    run_status[stat_str] = set()
+    if not filtered_runs.empty:
+        run_status[stat_str] = set(filtered_runs["params.config_json"].values)
 # ---------------------------
 # Here is the situation
 pprint.pprint({k: len(v) for k, v in run_status.items()})
