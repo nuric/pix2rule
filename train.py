@@ -4,6 +4,7 @@ import datetime
 from pathlib import Path
 import sys
 import signal
+import socket
 
 import numpy as np
 import absl.logging
@@ -173,6 +174,7 @@ def mlflow_train():
     logger.info("Experiment id: %s", mlflow_run.info.experiment_id)
     logger.info("Run id: %s", run_id)
     mlflow.set_tag("config_hash", config_hash)
+    mlflow.set_tag("hostname", socket.gethostname())
     logger.info("Artifact uri is %s", mlflow.get_artifact_uri())
     # ---------------------------
     # Latch onto signal SIGTERM for graceful termination of long running
