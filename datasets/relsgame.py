@@ -82,19 +82,23 @@ def get_compressed_path() -> Path:
     # ---------------------------
     # Create compressed data folder and log the index.json
     compressed_dir = Path(C["data_dir"]) / "relsgame" / "compressed"
-    compressed_dir.mkdir(parents=True, exist_ok=True)
-    index_json_filepath = compressed_dir / "index.json"
+    cpath = compressed_dir / f"{desc_hash}.npz"
     # ---------------------------
-    # Update json with new generated data file
-    index_json = dict()
-    if index_json_filepath.exists():
-        with index_json_filepath.open() as filep:
-            index_json = json.load(filep)
-    index_json[desc_hash] = desc
-    with index_json_filepath.open("w") as filep:
-        json.dump(index_json, filep, indent=4)
+    # Check for new generated file
+    if not cpath.exists():
+        compressed_dir.mkdir(parents=True, exist_ok=True)
+        index_json_filepath = compressed_dir / "index.json"
+        # ---------------------------
+        # Update json with new generated data file
+        index_json = dict()
+        if index_json_filepath.exists():
+            with index_json_filepath.open() as filep:
+                index_json = json.load(filep)
+        index_json[desc_hash] = desc
+        with index_json_filepath.open("w") as filep:
+            json.dump(index_json, filep, indent=4)
     # ---------------------------
-    return compressed_dir / f"{desc_hash}.npz"
+    return cpath
 
 
 def downsize_images(images: np.ndarray) -> np.ndarray:
