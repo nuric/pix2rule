@@ -46,6 +46,12 @@ add_argument(
     help="Hidden extra predicates to be learned.",
 )
 add_argument(
+    "--num_total_variables", type=int, default=2, help="Number of variables in the DNF."
+)
+add_argument(
+    "--num_conjuncts", type=int, default=8, help="Number of conjunctions in the DNF."
+)
+add_argument(
     "--iterations",
     type=int,
     default=2,
@@ -104,7 +110,10 @@ def build_model(  # pylint: disable=too-many-locals
     # Perform rule learning and get predictions
     target_rules = task_description["output"]["target_rules"]  # List of rule arities
     dnf_layer = DNFLayer(
-        arities=target_rules + C["dnf_hidden_predicates"], recursive=True
+        arities=target_rules + C["dnf_hidden_predicates"],
+        num_total_variables=C["dnf_num_total_variables"],
+        num_conjucts=C["dnf_num_conjuncts"],
+        recursive=True,
     )
     padded_facts = dnf_layer.pad_inputs(facts)  # {'nullary': (B, P0+R0), ...}
     for _ in range(C["dnf_iterations"]):
