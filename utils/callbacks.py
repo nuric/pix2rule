@@ -229,6 +229,10 @@ class ArtifactSaver(tf.keras.callbacks.Callback):
         self.artifact_dir = artifact_dir
         self.dset_wrapper = dset_wrapper or (lambda x: x)
 
+    def on_train_begin(self, logs: Dict[str, float] = None):
+        """Store initial information about model."""
+        mlflow.set_tag("num_params", self.model.count_params())
+
     def on_train_end(self, logs: Dict[str, float] = None):
         """Save generated model artifacts."""
         # Save model summary
