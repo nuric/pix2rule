@@ -25,7 +25,7 @@ class DNFLayer(tf.keras.layers.Layer):  # pylint: disable=too-many-instance-attr
         self,
         arities: List[int] = None,
         num_total_variables: int = 2,
-        num_disjuncts: int = 8,
+        num_conjucts: int = 8,
         recursive: bool = False,
         **kwargs,
     ):
@@ -45,7 +45,7 @@ class DNFLayer(tf.keras.layers.Layer):  # pylint: disable=too-many-instance-attr
             num_total_variables >= 0
         ), "Got negative number of total variables for DNF."
         self.num_total_variables = num_total_variables
-        self.num_disjuncts = num_disjuncts
+        self.num_conjucts = num_conjucts
         self.recursive = recursive  # Tells if we should our outputs with given inputs
         self.temperature = self.add_weight(
             name="temperature",
@@ -77,7 +77,7 @@ class DNFLayer(tf.keras.layers.Layer):  # pylint: disable=too-many-instance-attr
         and_prob = 2 / num_in  # Average number of predicates per conjunct
         self.and_kernel = self.add_weight(
             name="and_kernel",
-            shape=(len(self.arities), self.num_disjuncts, num_in, 3),
+            shape=(len(self.arities), self.num_conjucts, num_in, 3),
             # initializer=tf.keras.initializers.RandomNormal(mean=0.0, stddev=10.0),
             initializer=CategoricalRandomNormal(
                 probs=[and_prob, 0.0, 1 - and_prob], mean=2.0, stddev=1.0
@@ -86,7 +86,7 @@ class DNFLayer(tf.keras.layers.Layer):  # pylint: disable=too-many-instance-attr
         )
         self.or_kernel = self.add_weight(
             name="or_kernel",
-            shape=(len(self.arities), self.num_disjuncts),
+            shape=(len(self.arities), self.num_conjucts),
             # initializer=tf.keras.initializers.RandomNormal(mean=0.0, stddev=10.0),
             initializer=BernoulliRandomNormal(prob=0.9, mean=2.0, stddev=1.0),
         )
@@ -246,7 +246,7 @@ class DNFLayer(tf.keras.layers.Layer):  # pylint: disable=too-many-instance-attr
             {
                 "arities": self.arities,
                 "num_total_variables": self.num_total_variables,
-                "num_disjuncts": self.num_disjuncts,
+                "num_conjucts": self.num_conjucts,
                 "recursive": self.recursive,
             }
         )
