@@ -112,7 +112,7 @@ def build_model(  # pylint: disable=too-many-locals
     dnf_layer = DNFLayer(
         arities=target_rules + C["dnf_hidden_predicates"],
         num_total_variables=C["dnf_num_total_variables"],
-        num_conjucts=C["dnf_num_conjuncts"],
+        num_conjuncts=C["dnf_num_conjuncts"],
         recursive=True,
     )
     padded_facts = dnf_layer.pad_inputs(facts)  # {'nullary': (B, P0+R0), ...}
