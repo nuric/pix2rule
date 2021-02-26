@@ -18,21 +18,8 @@
             "program": "${workspaceFolder}/train.py",
             "console": "integratedTerminal",
             "args": [
-                "--model_name",
-                "dnf_image_classifier",
-                "--dataset_name",
-                "relsgame",
-                "--max_steps",
-                "100000",
-                "--relsgame_tasks",
-                "same",
-                "--relsgame_train_size",
-                "10000",
-                "--relsgame_one_hot_labels",
-                "--eval_every",
-                "200",
-                "--converged_loss",
-                "0.1",
+                "--config_json",
+                "data/manual_run.json.default",
                 "--debug"
             ]
         }
