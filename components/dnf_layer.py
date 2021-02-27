@@ -80,14 +80,14 @@ class DNFLayer(tf.keras.layers.Layer):  # pylint: disable=too-many-instance-attr
             np.log(0.5) * num_in
         )
         assert (
-            0 <= and_prob and and_prob <= 1
+            0 <= and_prob <= 1
         ), f"Conjunction element probability out of range: {and_prob}."
         self.and_kernel = self.add_weight(
             name="and_kernel",
             shape=(len(self.arities), self.num_conjuncts, num_in, 3),
             # initializer=tf.keras.initializers.RandomNormal(mean=0.0, stddev=1.0),
             initializer=CategoricalRandomNormal(
-                probs=[and_prob, 0.0, 1 - and_prob], mean=2.0, stddev=1.0
+                probs=[and_prob, 0.0, 1 - and_prob], mean=1.0, stddev=0.1
             )
             # regularizer=tf.keras.regularizers.L1(l1=0.01),
         )
@@ -95,7 +95,7 @@ class DNFLayer(tf.keras.layers.Layer):  # pylint: disable=too-many-instance-attr
             name="or_kernel",
             shape=(len(self.arities), self.num_conjuncts),
             # initializer=tf.keras.initializers.RandomNormal(mean=0.0, stddev=1.0),
-            initializer=BernoulliRandomNormal(prob=or_prob, mean=2.0, stddev=1.0),
+            initializer=BernoulliRandomNormal(prob=or_prob, mean=1.0, stddev=0.1),
         )
         # ---------------------------
         # Compute permutation indices to gather later
