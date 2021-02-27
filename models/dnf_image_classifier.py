@@ -16,6 +16,7 @@ from components.dnf_layer import DNFLayer
 
 import utils.callbacks
 import utils.factory
+import utils.schedules
 
 
 # ---------------------------
@@ -159,8 +160,8 @@ def build_model(  # pylint: disable=too-many-locals
         ),
         utils.callbacks.ParamScheduler(
             layer_params=[("dnf_layer", "temperature")],
-            scheduler=tf.keras.optimizers.schedules.ExponentialDecay(
-                1.0, decay_steps=2, decay_rate=0.9
+            scheduler=utils.schedules.DelayedExponentialDecay(
+                1.0, decay_steps=1, decay_rate=0.9, delay=80
             ),
             min_value=0.01,
         ),
