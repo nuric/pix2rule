@@ -60,6 +60,12 @@ add_argument("--tracking_uri", default="data/mlruns", help="MLflow tracking URI.
 add_argument(
     "--learning_rate", type=float, default=0.001, help="Optimizer learning rate."
 )
+add_argument(
+    "--run_count",
+    type=int,
+    default=0,
+    help="Run count for repeated runs of the same configuration.",
+)
 
 # ---------------------------
 
