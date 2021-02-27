@@ -34,14 +34,14 @@ class LinearObjectFeatures(L.Layer):
             unary_size,
             activation="sigmoid",
             name="unary_model",
-            bias_initializer=tf.keras.initializers.Constant(4),
+            # bias_initializer=tf.keras.initializers.Constant(4),
             # bias_initializer=tf.keras.initializers.RandomNormal(mean=0.0, stddev=4.0),
         )
         self.binary_model = L.Dense(
             binary_size,
             activation="sigmoid",
             name="binary_model",
-            bias_initializer=tf.keras.initializers.Constant(4),
+            # bias_initializer=tf.keras.initializers.Constant(4),
             # bias_initializer=tf.keras.initializers.RandomNormal(mean=0.0, stddev=4.0),
         )
 

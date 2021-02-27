@@ -74,11 +74,18 @@ class DNFLayer(tf.keras.layers.Layer):  # pylint: disable=too-many-instance-attr
         )
         # ---
         # pylint: disable=attribute-defined-outside-init
-        and_prob = 2 / num_in  # Average number of predicates per conjunct
+        # We will calculate a probability to have a stable start
+        or_prob = 0.9
+        and_prob = np.log(1 - np.power(0.5, 1 / (self.num_conjuncts * or_prob))) / (
+            np.log(0.5) * num_in
+        )
+        assert (
+            0 <= and_prob and and_prob <= 1
+        ), f"Conjunction element probability out of range: {and_prob}."
         self.and_kernel = self.add_weight(
             name="and_kernel",
             shape=(len(self.arities), self.num_conjuncts, num_in, 3),
-            # initializer=tf.keras.initializers.RandomNormal(mean=0.0, stddev=10.0),
+            # initializer=tf.keras.initializers.RandomNormal(mean=0.0, stddev=1.0),
             initializer=CategoricalRandomNormal(
                 probs=[and_prob, 0.0, 1 - and_prob], mean=2.0, stddev=1.0
             )
@@ -87,8 +94,8 @@ class DNFLayer(tf.keras.layers.Layer):  # pylint: disable=too-many-instance-attr
         self.or_kernel = self.add_weight(
             name="or_kernel",
             shape=(len(self.arities), self.num_conjuncts),
-            # initializer=tf.keras.initializers.RandomNormal(mean=0.0, stddev=10.0),
-            initializer=BernoulliRandomNormal(prob=0.9, mean=2.0, stddev=1.0),
+            # initializer=tf.keras.initializers.RandomNormal(mean=0.0, stddev=1.0),
+            initializer=BernoulliRandomNormal(prob=or_prob, mean=2.0, stddev=1.0),
         )
         # ---------------------------
         # Compute permutation indices to gather later
