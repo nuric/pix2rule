@@ -211,13 +211,13 @@ class DNFLayer(tf.keras.layers.Layer):  # pylint: disable=too-many-instance-attr
         # For nullary reduce over all variables, i.e. there exists XYZ ...
         nullary_rules = rules[..., :unary_index]  # (B, N, N-1, ..., R0)
         var_range = tf.range(self.num_total_variables) + 1  # [1, 2, ...] x V
-        nullary_rules = reduce_probsum(nullary_rules, var_range)  # (B, R0)
+        nullary_rules = tf.reduce_max(nullary_rules, var_range)  # (B, R0)
         # For unary reduce over remaining variables, i.e. For all X, there exists YZ
         unary_rules = rules[..., unary_index:binary_index]  # (B, N, N-1, ..., R1)
-        unary_rules = reduce_probsum(unary_rules, var_range[1:])  # (B, N, R1)
+        unary_rules = tf.reduce_max(unary_rules, var_range[1:])  # (B, N, R1)
         # For binary reduce over remaining variables except first 2 and so on
         binary_rules = rules[..., binary_index:]  # (B, N, N-1, ..., R2)
-        binary_rules = reduce_probsum(binary_rules, var_range[2:])  # (B, N, N-1, R2)
+        binary_rules = tf.reduce_max(binary_rules, var_range[2:])  # (B, N, N-1, R2)
         outputs = {
             "nullary": nullary_rules,
             "unary": unary_rules,
