@@ -9,13 +9,43 @@ rule, negation in the rule o not in the rule. For disjunctions, it is either
 in the disjunction or not. The weights needs to be initialised carefully not
 to starve the downstream layers of gradients otherwise it does not train at
 all."""
-from typing import Dict, List
+from typing import Dict, List, Any
 import itertools
 import numpy as np
 import tensorflow as tf
 
 from components.ops import reduce_probsum, flatten_concat
 from components.initialisers import CategoricalRandomNormal, BernoulliRandomNormal
+
+configurable: Dict[str, Dict[str, Any]] = {
+    "layer_name": {
+        "type": str,
+        "default": "DNFLayer",
+        "choices": ["DNFLayer"],
+        "help": "DNF layer to use.",
+    },
+    "arities": {
+        "type": int,
+        "nargs": "*",
+        "default": [0],
+        "help": "Number of predicates and their arities.",
+    },
+    "num_total_variables": {
+        "type": int,
+        "default": 2,
+        "help": "Number of variables in conjunctions.",
+    },
+    "num_conjuncts": {
+        "type": int,
+        "default": 8,
+        "help": "Number of conjunctions in this DNF.",
+    },
+    "recursive": {
+        "type": bool,
+        "default": False,
+        "help": "Whether the inputs contain layer outputs.",
+    },
+}
 
 
 class DNFLayer(tf.keras.layers.Layer):  # pylint: disable=too-many-instance-attributes
@@ -46,7 +76,7 @@ class DNFLayer(tf.keras.layers.Layer):  # pylint: disable=too-many-instance-attr
         ), "Got negative number of total variables for DNF."
         self.num_total_variables = num_total_variables
         self.num_conjuncts = num_conjuncts
-        self.recursive = recursive  # Tells if we should our outputs with given inputs
+        self.recursive = recursive  # Tells if we should use outputs with given inputs
         self.temperature = self.add_weight(
             name="temperature",
             initializer=tf.keras.initializers.Constant(1),

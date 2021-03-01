@@ -12,7 +12,7 @@ from components.inputlayers.categorical import OneHotCategoricalInput
 import components.inputlayers.image
 import components.object_features
 import components.object_selection
-from components.dnf_layer import DNFLayer
+import components.dnf_layer
 
 import utils.callbacks
 import utils.factory
@@ -39,18 +39,8 @@ configlib.add_arguments_dict(
 )
 # ---
 # DNF Layer options
-add_argument(
-    "--hidden_predicates",
-    type=int,
-    nargs="*",
-    default=[],
-    help="Hidden extra predicates to be learned.",
-)
-add_argument(
-    "--num_total_variables", type=int, default=2, help="Number of variables in the DNF."
-)
-add_argument(
-    "--num_conjuncts", type=int, default=8, help="Number of conjunctions in the DNF."
+configlib.add_arguments_dict(
+    add_argument, components.dnf_layer.configurable, prefix="inference"
 )
 add_argument(
     "--iterations",
@@ -110,11 +100,13 @@ def build_model(  # pylint: disable=too-many-locals
     # ---------------------------
     # Perform rule learning and get predictions
     target_rules = task_description["output"]["target_rules"]  # List of rule arities
-    dnf_layer = DNFLayer(
-        arities=target_rules + C["dnf_hidden_predicates"],
-        num_total_variables=C["dnf_num_total_variables"],
-        num_conjuncts=C["dnf_num_conjuncts"],
+    dnf_layer = utils.factory.get_and_init(
+        components.dnf_layer,
+        C,
+        "dnf_inference_",
+        arities=target_rules,
         recursive=True,
+        name="dnf_layer",
     )
     padded_facts = dnf_layer.pad_inputs(facts)  # {'nullary': (B, P0+R0), ...}
     for _ in range(C["dnf_iterations"]):
@@ -153,15 +145,15 @@ def build_model(  # pylint: disable=too-many-locals
     callbacks = [
         utils.callbacks.ParamScheduler(
             layer_params=[("object_selector", "temperature")],
-            scheduler=tf.keras.optimizers.schedules.ExponentialDecay(
-                0.5, decay_steps=1, decay_rate=0.9
+            scheduler=utils.schedules.DelayedExponentialDecay(
+                1.0, decay_steps=1, decay_rate=0.9, delay=40
             ),
             min_value=0.01,
         ),
         utils.callbacks.ParamScheduler(
             layer_params=[("dnf_layer", "temperature")],
             scheduler=utils.schedules.DelayedExponentialDecay(
-                1.0, decay_steps=1, decay_rate=0.9, delay=80
+                1.0, decay_steps=1, decay_rate=0.8, delay=100
             ),
             min_value=0.01,
         ),
