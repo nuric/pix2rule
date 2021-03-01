@@ -67,7 +67,7 @@ class LinearObjectFeatures(L.Layer):
         # Compute binary features
         arg1 = tf.gather(inputs, self.binary_idxs[..., 0], axis=1)  # (B, O, O-1, E)
         arg2 = tf.gather(inputs, self.binary_idxs[..., 1], axis=1)  # (B, O, O-1, E)
-        paired_objects = arg1 - arg2  # (B, O, O-1, E)
+        paired_objects = tf.concat([arg1, arg2, arg1 - arg2], -1)  # (B, O, O-1, 3*E)
         binary_preds = self.binary_model(paired_objects)  # (B, O, O-1, P2)
         # ---------------------------
         return {
