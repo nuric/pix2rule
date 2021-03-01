@@ -7,6 +7,7 @@ from configlib import config as C
 
 from . import dnf_image_classifier
 from . import predinet
+from . import mlp
 
 # ---------------------------
 # Model registry
@@ -15,6 +16,7 @@ from . import predinet
 registry = {
     "dnf_image_classifier": dnf_image_classifier.build_model,
     "predinet": predinet.build_model,
+    "mlp": mlp.build_model,
 }
 # ---------------------------
 
