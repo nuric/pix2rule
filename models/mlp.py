@@ -61,7 +61,9 @@ def build_model(  # pylint: disable=too-many-locals
     mlp_inputs = utils.factory.create_input_layers(task_description, processors)
     # ---------------------------
     # Concatenate processed inputs
-    concat_in = L.Concatenate()(list(mlp_inputs["processed"].values()))
+    concat_in = next(iter(mlp_inputs["processed"].values()))
+    if len(mlp_inputs["processed"]) > 1:
+        concat_in = L.Concatenate()(list(mlp_inputs["processed"].values()))
     # ---------------------------
     for size, activation in zip(C["mlp_hidden_sizes"], C["mlp_hidden_activations"]):
         concat_in = L.Dense(size, activation=activation)(concat_in)
