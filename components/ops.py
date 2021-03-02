@@ -41,9 +41,16 @@ def soft_minimum(
 def flatten_concat(tensors: List[tf.Tensor], batch_dims: int = 1) -> tf.Tensor:
     """Flatten given inputs and concatenate them."""
     # tensors [(B, ...), (B, ...)]
-    flattened = [
-        tf.reshape(x, tf.concat([tf.shape(x)[:batch_dims], [-1]], 0)) for x in tensors
-    ]  # [(B, X), (B, Y) ...]
+    flattened: List[tf.Tensor] = list()  # [(B, X), (B, Y) ...]
+    for tensor in tensors:
+        final_dim = -1
+        if all(i is not None for i in tensor.shape[batch_dims:]):
+            # We know all the dimensions
+            final_dim = tf.reduce_prod(tensor.shape[batch_dims:])
+        flat_tensor = tf.reshape(
+            tensor, tf.concat([tf.shape(tensor)[:batch_dims], [final_dim]], 0)
+        )
+        flattened.append(flat_tensor)
     return tf.concat(flattened, -1)  # (B, X+Y+...)
 
 
