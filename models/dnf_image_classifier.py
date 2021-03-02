@@ -133,13 +133,17 @@ def build_model(  # pylint: disable=too-many-locals
     # ---------------------------
     # Compile model for training
     dataset_type = task_description["output"]["type"]
+    if C["dnf_inference_layer_name"] == "DNF":
+        expected_type = "multilabel"
+        loss = tf.keras.losses.BinaryCrossentropy(from_logits=False)
+        metrics = [tf.keras.metrics.CategoricalAccuracy(name="acc")]
+    elif C["dnf_inference_layer_name"] == "RealDNF":
+        expected_type = "multiclass"
+        loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
+        metrics = [tf.keras.metrics.SparseCategoricalAccuracy(name="acc")]
     assert (
-        dataset_type == "multilabel"
-    ), f"DNF classifier requires a multilabel dataset, got {dataset_type}"
-    # loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-    loss = tf.keras.losses.BinaryCrossentropy(from_logits=False)
-    metrics = [tf.keras.metrics.CategoricalAccuracy(name="acc")]
-    # metrics=[tf.keras.metrics.SparseCategoricalAccuracy(name="acc")],
+        dataset_type == expected_type
+    ), f"DNF requires a {expected_type} dataset, got {dataset_type}"
     # ---------------------------
     # Setup temperature scheduler callback
     callbacks = [
