@@ -36,6 +36,18 @@ class TestOps(tf.test.TestCase):
         self.assertEqual(res.shape, [4, 2])
         self.assertAllClose(tf.ones(res.shape), res)
 
+    def test_soft_maximum_single_dim(self):
+        """Soft maximum returns the maximum when low enough temperature is given."""
+        tensor = tf.random.normal([4, 2], stddev=10)
+        res = ops.soft_maximum(tensor, temperature=0.01)
+        self.assertAllClose(res, tf.reduce_max(tensor, -1))
+
+    def test_soft_minimum_single_dim(self):
+        """Soft maximum returns the maximum when low enough temperature is given."""
+        tensor = tf.random.normal([4, 2], stddev=10)
+        res = ops.soft_minimum(tensor, temperature=0.01)
+        self.assertAllClose(res, tf.reduce_min(tensor, -1))
+
     def test_scaled_softmax(self):
         """Scaled softmax returns a sharpened version of softmax."""
         tensor = tf.constant([0.2, 0.9])

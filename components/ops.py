@@ -20,6 +20,24 @@ def reduce_probsum(
     )  # (..., 1?, ...)
 
 
+def soft_maximum(
+    tensor: tf.Tensor, axis: int = -1, temperature: float = 1.0, keepdims: bool = False
+) -> tf.Tensor:
+    """Compute the soft maximum of a given tensor along an axis."""
+    # tensor (..., X, ...)
+    return tf.reduce_sum(
+        tf.nn.softmax(tensor / temperature, axis) * tensor, axis, keepdims=keepdims
+    )
+
+
+def soft_minimum(
+    tensor: tf.Tensor, axis: int = -1, temperature: float = 1.0, keepdims: bool = False
+) -> tf.Tensor:
+    """Compute the soft minimum of a given tensor along an axis."""
+    # tensor (..., X, ...)
+    return -soft_maximum(-tensor, axis=axis, temperature=temperature, keepdims=keepdims)
+
+
 def flatten_concat(tensors: List[tf.Tensor], batch_dims: int = 1) -> tf.Tensor:
     """Flatten given inputs and concatenate them."""
     # tensors [(B, ...), (B, ...)]
