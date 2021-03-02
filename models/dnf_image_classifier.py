@@ -100,28 +100,30 @@ def build_model(  # pylint: disable=too-many-locals
     # ---------------------------
     # Perform rule learning and get predictions
     target_rules = task_description["output"]["target_rules"]  # List of rule arities
+    # predictions = tf.keras.layers.Dense(len(target_rules))(
+    #     flatten_concat(list(facts.values()))
+    # )
     dnf_layer = utils.factory.get_and_init(
         components.dnf_layer,
         C,
         "dnf_inference_",
         arities=target_rules,
-        recursive=True,
+        recursive=C["dnf_iterations"] > 1,
         name="dnf_layer",
     )
-    padded_facts = dnf_layer.pad_inputs(facts)  # {'nullary': (B, P0+R0), ...}
+    if C["dnf_iterations"] > 1:
+        facts = dnf_layer.pad_inputs(facts)  # {'nullary': (B, P0+R0), ...}
     for _ in range(C["dnf_iterations"]):
-        padded_facts_kernel = dnf_layer(padded_facts)  # {'nullary': (B, P0+R0), ...}
-        padded_facts_kernel = ReportLayer()(padded_facts_kernel)
-        padded_facts = {
-            k: padded_facts_kernel[k] for k in ["nullary", "unary", "binary"]
-        }
+        facts_kernel = dnf_layer(facts)  # {'nullary': (B, P0+R0), ...}
+        facts_kernel = ReportLayer()(facts_kernel)
+        facts = {k: facts_kernel[k] for k in ["nullary", "unary", "binary"]}
     # ---
     # Extract out the required target rules
     predictions = list()
     for arity, key in enumerate(["nullary", "unary", "binary"]):
         count = target_rules.count(arity)
         if count:
-            predictions.append(padded_facts[key][..., -count:])  # (B, ..., Rcount)
+            predictions.append(facts[key][..., -count:])  # (B, ..., Rcount)
     predictions = flatten_concat(predictions)  # (B, R)
     # ---------------------------
     # Create model with given inputs and outputs
@@ -150,7 +152,10 @@ def build_model(  # pylint: disable=too-many-locals
         utils.callbacks.ParamScheduler(
             layer_params=[("object_selector", "temperature")],
             scheduler=utils.schedules.DelayedExponentialDecay(
-                1.0, decay_steps=1, decay_rate=0.9, delay=40
+                C["dnf_object_sel_initial_temperature"],
+                decay_steps=1,
+                decay_rate=0.9,
+                delay=40,
             ),
             min_value=0.01,
         ),

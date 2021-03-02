@@ -128,7 +128,7 @@ class DNF(tf.keras.layers.Layer):  # pylint: disable=too-many-instance-attribute
             shape=(len(self.arities), self.num_conjuncts, num_in, 3),
             # initializer=tf.keras.initializers.RandomNormal(mean=0.0, stddev=1.0),
             initializer=CategoricalRandomNormal(
-                probs=[and_prob, 0.0, 1 - and_prob], mean=1.0, stddev=0.1
+                probs=[and_prob / 2, and_prob / 2, 1 - and_prob], mean=1.0, stddev=0.1
             )
             # regularizer=tf.keras.regularizers.L1(l1=0.01),
         )
