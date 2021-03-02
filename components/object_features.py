@@ -20,26 +20,34 @@ configurable: Dict[str, Dict[str, Any]] = {
         "default": 8,
         "help": "Number of binary predicates for objects.",
     },
+    "activation": {"default": "sigmoid", "help": "Activation of learnt predicates."},
 }
 
 
 class LinearObjectFeatures(L.Layer):
     """Computes linear object features."""
 
-    def __init__(self, unary_size: int = 4, binary_size: int = 8, **kwargs):
+    def __init__(
+        self,
+        unary_size: int = 4,
+        binary_size: int = 8,
+        activation: str = "sigmoid",
+        **kwargs
+    ):
         super().__init__(**kwargs)
         self.unary_size = unary_size
         self.binary_size = binary_size
+        self.activation = activation
         self.unary_model = L.Dense(
             unary_size,
-            activation="sigmoid",
+            activation=activation,
             name="unary_model",
             # bias_initializer=tf.keras.initializers.Constant(4),
             # bias_initializer=tf.keras.initializers.RandomNormal(mean=0.0, stddev=4.0),
         )
         self.binary_model = L.Dense(
             binary_size,
-            activation="sigmoid",
+            activation=activation,
             name="binary_model",
             # bias_initializer=tf.keras.initializers.Constant(4),
             # bias_initializer=tf.keras.initializers.RandomNormal(mean=0.0, stddev=4.0),
@@ -82,6 +90,7 @@ class LinearObjectFeatures(L.Layer):
             {
                 "unary_size": self.unary_size,
                 "binary_size": self.binary_size,
+                "activation": self.activation,
             }
         )
         return config
