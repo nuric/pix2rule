@@ -31,7 +31,7 @@ def compute_centered_ranks(tensor: tf.Tensor) -> tf.Tensor:
 # ---------------------------
 
 
-class ESModel(tf.keras.Model):  # pylint: disable=abstract-method
+class ESModel(tf.keras.Model):  # pylint: disable=abstract-method, too-many-ancestors
     """Natural Evolution Strategy based training model."""
 
     def __init__(self, pop_size: int = 40, noise_stddev: float = 0.1, **kwargs):
