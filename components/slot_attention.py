@@ -26,7 +26,6 @@ from typing import Tuple
 import numpy as np
 import tensorflow as tf
 import tensorflow.keras.layers as L
-from reportlib import report_tensor
 
 
 class SlotAttention(L.Layer):  # pylint: disable=too-many-instance-attributes
@@ -127,8 +126,7 @@ class SlotAttention(L.Layer):  # pylint: disable=too-many-instance-attributes
             slots += self.mlp(self.norm_mlp(slots))
 
         attns = tf.stack(attns, axis=1)  # (B, iterations, num_inputs, num_slots)
-        report_tensor("slot_attention", attns)
-        return slots
+        return {"slots": slots, "slot_attention": attns}
 
     def get_config(self):
         """Serialisable configuration dictionary."""
