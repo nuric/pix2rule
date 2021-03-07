@@ -20,6 +20,22 @@ class TestSpacialFlatten(tf.test.TestCase):
         self.assertEqual(res.shape, [4, 8, 4])
 
 
+class TestSpacialBroadcast(tf.test.TestCase):
+    """Test cases for spacial broadcasting."""
+
+    def test_2d_broadcasting(self):
+        """Successfully broadcasts into a 2d grid."""
+        tensor = tf.random.normal((4, 2, 4))
+        res = util_layers.SpacialBroadcast([8, 7])(tensor)
+        self.assertEqual(res.shape, [8, 8, 7, 4])
+
+    def test_3d_broadcasting(self):
+        """Broadcasts objects into a 3d grid."""
+        tensor = tf.random.normal((4, 2, 4))
+        res = util_layers.SpacialBroadcast([7, 9, 8])(tensor)
+        self.assertEqual(res.shape, [8, 7, 9, 8, 4])
+
+
 class TestMergeFacts(tf.test.TestCase):
     """Unit test cases merging dictionary based facts."""
 

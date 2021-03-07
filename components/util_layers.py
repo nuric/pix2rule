@@ -26,6 +26,33 @@ class SpacialFlatten(tf.keras.layers.Layer):
         return tf.reshape(inputs, new_shape)  # (B, ., X)
 
 
+class SpacialBroadcast(tf.keras.layers.Layer):
+    """Broadcast a set of objects into a given spacial resolution."""
+
+    def __init__(self, resolution: List[int], **kwargs):
+        super().__init__(**kwargs)
+        self.resolution = resolution
+
+    def call(self, inputs: tf.Tensor, **kwargs):
+        """Broadcast given inputs."""
+        # inputs (B, O, E)
+        assert (
+            len(inputs.shape) == 3
+        ), f"Expected 3 dimensional tensor for spacial broadcast, got {len(inputs.shape)}"
+        # ---------------------------
+        objects = tf.reshape(
+            inputs, [-1] + [1] * len(self.resolution) + [inputs.shape[-1]]
+        )  # (B*O, 1, ..., E)
+        grid = tf.tile(objects, [1] + self.resolution + [1])  # (B*O, D0, D1, ..., E)
+        return grid
+
+    def get_config(self):
+        """Serialisable configuration dictionary."""
+        config = super().get_config()
+        config.update({"resolution": self.resolution})
+        return config
+
+
 class MergeFacts(tf.keras.layers.Layer):
     """Merge dictionary based fact tensors."""
 
