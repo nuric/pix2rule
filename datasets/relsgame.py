@@ -48,7 +48,33 @@ add_argument(
     help="Test size per task, 0 to use everything.",
 )
 add_argument("--batch_size", default=64, type=int, help="Data batch size.")
-add_argument("--one_hot_labels", action="store_true", help="One-hot encode labels.")
+add_argument(
+    "--output_type",
+    default="label",
+    choices=[
+        "label",
+        "image",
+        "onehot_label",
+        "label_and_image",
+        "onehot_label_and_image",
+    ],
+    help="Type of prediction task.",
+)
+add_argument(
+    "--with_augmentation", action="store_true", help="Apply data augmentation."
+)
+add_argument(
+    "--noise_stddev",
+    default=0.0,
+    type=float,
+    help="Added noise to image at training inputs.",
+)
+add_argument(
+    "--rng_seed",
+    default=42,
+    type=int,
+    help="Random number generator seed for data augmentation.",
+)
 
 
 def get_file(fname: str) -> str:
@@ -214,6 +240,37 @@ def generate_data() -> str:  # pylint: disable=too-many-locals
     return str(cpath)
 
 
+def data_augmentation(
+    inputs: Dict[str, tf.Tensor],
+    outputs: Dict[str, tf.Tensor],
+    rng: tf.random.Generator,
+) -> Tuple[Dict[str, tf.Tensor], Dict[str, tf.Tensor]]:
+    """Optional data augmentation."""
+    # inputs {'image': ...} , outputs {'image': ..., 'label': ...}
+    new_inputs = inputs.copy()
+    new_outputs = outputs.copy()
+    # ---------------------------
+    # Process image augmentation
+    if C["relsgame_with_augmentation"]:
+        seed = rng.uniform_full_int((2,), dtype=tf.int32)
+        aug_img = tf.image.stateless_random_flip_left_right(inputs["image"], seed)
+        seed = rng.uniform_full_int((2,), dtype=tf.int32)
+        aug_img = tf.image.stateless_random_flip_up_down(aug_img, seed)
+        num_rotations = rng.uniform((), minval=0, maxval=2, dtype=tf.int32)  # 0 or 1
+        aug_img = tf.image.rot90(aug_img, k=num_rotations)
+        new_inputs["image"] = aug_img
+        if "image" in outputs:
+            new_outputs["image"] = aug_img
+    # ---------------------------
+    # Add optional input noise
+    if C["relsgame_noise_stddev"] > 0.0:
+        new_inputs["image"] += rng.normal(
+            tf.shape(new_inputs["image"]), stddev=C["relsgame_noise_stddev"]
+        )
+        new_inputs["image"] = tf.clip_by_value(new_inputs["image"], -1, 1)
+    return new_inputs, new_outputs
+
+
 def load_data() -> Tuple[  # pylint: disable=too-many-locals
     Dict[str, Any], Dict[str, tf.data.Dataset]
 ]:
@@ -242,25 +299,46 @@ def load_data() -> Tuple[  # pylint: disable=too-many-locals
     # ---------------------------
     # Compute max labels for one-hot encoding
     max_label = max([v.max() for k, v in dnpz.items() if k.endswith("labels")])
+    rng = tf.random.Generator.from_seed(C["relsgame_rng_seed"])
     # ---------------------------
     # Curate datasets
     dsets: Dict[str, tf.data.Dataset] = dict()
     for dname in dsetnames:
         # Shuffle in unison
         ridxs = np.random.permutation(dnpz[dname + "_labels"].shape[0])
-        imgs = tf.image.convert_image_dtype(dnpz[dname + "_images"][ridxs], tf.float32)
+        imgs = (
+            tf.image.convert_image_dtype(dnpz[dname + "_images"][ridxs], tf.float32) * 2
+            - 1
+        )
         # we expand types for tensorflow
-        task_ids = dnpz[dname + "_task_ids"][ridxs].astype(np.int32)
-        labels = dnpz[dname + "_labels"][ridxs].astype(np.int32)
-        if C["relsgame_one_hot_labels"]:
-            labels = np.eye(max_label + 1, dtype=np.int32)[labels]
+        task_ids = tf.convert_to_tensor(
+            dnpz[dname + "_task_ids"][ridxs], dtype=tf.int32
+        )
+        label = tf.convert_to_tensor(dnpz[dname + "_labels"][ridxs], dtype=tf.int32)
+        if "onehot" in C["relsgame_output_type"]:
+            label = tf.one_hot(label, max_label + 1, on_value=1, off_value=0)
+        # ---------------------------
+        # Construct inputs
         input_dict = {"image": imgs}
-        # Optionally add task_ids if there are multiple tasks
-        if len(C["relsgame_tasks"] or all_tasks) > 1:
+        # Optionally add task_ids if there are multiple tasks,
+        # and we are not just predicting the image
+        if (
+            len(C["relsgame_tasks"] or all_tasks) > 1
+            and C["relsgame_output_type"] != "image"
+        ):
             input_dict["task_id"] = task_ids
-        tfdata = tf.data.Dataset.from_tensor_slices((input_dict, labels))
+        # ---------------------------
+        # Construct outputs
+        outputs_dict: Dict[str, tf.Tensor] = dict()
+        if "image" in C["relsgame_output_type"]:
+            outputs_dict["image"] = imgs
+        if "label" in C["relsgame_output_type"]:
+            outputs_dict["label"] = label
+        # ---------------------------
+        tfdata = tf.data.Dataset.from_tensor_slices((input_dict, outputs_dict))
         if dname == "train":
-            tfdata = tfdata.shuffle(1000).batch(C["relsgame_batch_size"]).repeat()
+            tfdata = tfdata.shuffle(1000).batch(C["relsgame_batch_size"])
+            tfdata = tfdata.map(lambda x, y: data_augmentation(x, y, rng)).repeat()
         else:
             tfdata = tfdata.batch(C["relsgame_batch_size"])
         dsets[dname] = tfdata
@@ -276,18 +354,27 @@ def load_data() -> Tuple[  # pylint: disable=too-many-locals
         inputs["task_id"]["num_categories"] = len(all_tasks)
     # ---
     output_spec = dsets["train"].element_spec[1]
-    output = {
-        "shape": tuple(output_spec.shape),
-        "dtype": output_spec.dtype,
-        "num_categories": max_label + 1,
-        "type": "multilabel" if len(output_spec.shape) > 1 else "multiclass",
-        # We are learning a nullary predicate for each label
-        "target_rules": [0] * (max_label + 1),
-    }
+    outputs: Dict[str, Any] = dict()
+    if "label" in output_spec:
+        outputs["label"] = {
+            "shape": tuple(output_spec["label"].shape),
+            "dtype": output_spec["label"].dtype,
+            "num_categories": max_label + 1,
+            "type": "multilabel"
+            if len(output_spec["label"].shape) > 1
+            else "multiclass",
+            # We are learning a nullary predicate for each label
+            "target_rules": [0] * (max_label + 1),
+        }
+    if "image" in output_spec:
+        outputs["image"] = {
+            "shape": tuple(output_spec["image"].shape),
+            "dtype": output_spec["image"].dtype,
+        }
     description = {
         "name": "relsgame",
         "inputs": inputs,
-        "output": output,
+        "outputs": outputs,
         "datasets": list(dsets.keys()),
     }
     # ---------------------------
