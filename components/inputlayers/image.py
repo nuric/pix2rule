@@ -25,11 +25,6 @@ configurable: Dict[str, Dict[str, Any]] = {
         "choices": ["relu", "sigmoid", "tanh"],
         "help": "Activation of hidden and final layer of image pipeline.",
     },
-    "noise_stddev": {
-        "type": float,
-        "default": 0.0,
-        "help": "Standard deviation of added noise to image input.",
-    },
     "with_position": {
         "action": "store_true",
         "help": "Append position coordinates.",
@@ -44,26 +39,19 @@ class BaseImageInput(L.Layer):
         self,
         hidden_size: int = 32,
         activation: str = "relu",
-        noise_stddev: float = 0.0,
         with_position: bool = False,
         **kwargs,
     ):
         super().__init__(**kwargs)
         self.hidden_size = hidden_size
         self.activation = activation
-        assert (
-            noise_stddev >= 0
-        ), f"Noise stddev needs to be non-negative got {noise_stddev}."
-        self.noise_stddev = noise_stddev
-        self.noise_layer = L.GaussianNoise(noise_stddev)
         self.with_position = with_position
         self.encoder_cnn = lambda x: x  # ID layer for pass through
 
     def call(self, inputs, **kwargs):
         """Process the provided image."""
         # inputs (B, W, H, C)
-        image_input = self.noise_layer(inputs) if self.noise_stddev > 0.0 else inputs
-        encoded = self.encoder_cnn(image_input)
+        encoded = self.encoder_cnn(inputs)
         return self.post_call(encoded)
 
     def post_call(self, inputs):
@@ -90,7 +78,6 @@ class BaseImageInput(L.Layer):
             {
                 "hidden_size": self.hidden_size,
                 "activation": self.activation,
-                "noise_stddev": self.noise_stddev,
                 "with_position": self.with_position,
             }
         )
