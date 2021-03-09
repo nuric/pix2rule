@@ -5,14 +5,13 @@ import tensorflow as tf
 from . import dnf_layer
 
 
-def gen_random_facts(num_objects: int = 2) -> Dict[str, tf.Tensor]:
+def gen_random_facts(num_objects: int = 2, seed: int = 42) -> Dict[str, tf.Tensor]:
     """Generate batch of random facts with given number of objects."""
+    rng = tf.random.Generator.from_seed(seed)
     return {
-        "nullary": tf.random.uniform((4, 2), dtype=tf.float32),
-        "unary": tf.random.uniform((4, num_objects, 4), dtype=tf.float32),
-        "binary": tf.random.uniform(
-            (4, num_objects, num_objects - 1, 3), dtype=tf.float32
-        ),
+        "nullary": rng.uniform((4, 2), dtype=tf.float32),
+        "unary": rng.uniform((4, num_objects, 4), dtype=tf.float32),
+        "binary": rng.uniform((4, num_objects, num_objects - 1, 3), dtype=tf.float32),
     }
 
 
