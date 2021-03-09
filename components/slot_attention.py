@@ -22,7 +22,7 @@ URL: https://papers.nips.cc/paper/2020/file/8511df98c02ab60aea1b2356c013bc0f-Pap
 
 Modified by nuric to adapt to project needs, linting and styling.
 """
-from typing import Tuple
+from typing import List
 import numpy as np
 import tensorflow as tf
 import tensorflow.keras.layers as L
@@ -146,7 +146,7 @@ class SlotAttention(L.Layer):  # pylint: disable=too-many-instance-attributes
 class SoftPositionEmbed(L.Layer):
     """Adds soft positional embedding with learnable projection."""
 
-    def __init__(self, hidden_size: int, resolution: Tuple[int, int]):
+    def __init__(self, hidden_size: int, resolution: List[int]):
         """Builds the soft position embedding layer.
 
         Args:
@@ -160,7 +160,7 @@ class SoftPositionEmbed(L.Layer):
         self.grid = self.build_grid(resolution)
 
     @staticmethod
-    def build_grid(resolution: Tuple[int, int]):
+    def build_grid(resolution: List[int]):
         """Build 2d grid for dense embedding of position in images."""
         ranges = [np.linspace(0.0, 1.0, num=res) for res in resolution]
         grid = np.meshgrid(*ranges, sparse=False, indexing="ij")
