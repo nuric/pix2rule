@@ -1,5 +1,5 @@
 """This module contains utility layers."""
-from typing import List, Dict
+from typing import List, Dict, Tuple
 import tensorflow as tf
 
 
@@ -74,6 +74,33 @@ class MergeFacts(tf.keras.layers.Layer):
                 (tf.shape(facts[next(iter(facts.keys()))])[0], 0), dtype=tf.float32
             )
         return facts
+
+
+class RecombineStackedImage(tf.keras.layers.Layer):
+    """Recombines a broadcasted image reconstruction."""
+
+    def __init__(self, num_channels: int = 3, **kwargs):
+        super().__init__(**kwargs)
+        self.num_channels = num_channels
+
+    def call(self, inputs: Tuple[tf.Tensor, tf.Tensor], **kwargs):
+        """Unstack, split and recombine reconstructed image."""
+        # inputs (B, S, E), (B*S, W, H, 4)
+        assert len(inputs) == 2, "Recombination expects 2 inputs got {len(inputs)}."
+        # We pass both inputs to reshape B*S into S
+        new_shape = tf.concat([tf.shape(inputs[0])[:2], tf.shape(inputs[1])[1:]], 0)
+        # (B, S, W, H, 4)
+        unstacked = tf.reshape(inputs[1], new_shape)  # (B, S, W, H, 4)
+        channels, masks = tf.split(
+            unstacked, [self.num_channels, 1], -1
+        )  # [(B, S, W, H, 3), (B, S, W, H, 1)]
+        masks = tf.nn.softmax(masks, axis=1)  # (B, S, W, H, 1)
+        reconstruction = tf.reduce_sum(channels * masks, axis=1)  # (B, W, H, 3)
+        return {
+            "combined": reconstruction,
+            "recon_masks": masks,
+            "reconstructions": channels,
+        }
 
 
 class Shuffle(tf.keras.layers.Layer):

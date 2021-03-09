@@ -7,7 +7,11 @@ import configlib
 from configlib import config as C
 from reportlib import ReportLayer
 
-from components.util_layers import SpacialFlatten, SpacialBroadcast
+from components.util_layers import (
+    SpacialFlatten,
+    SpacialBroadcast,
+    RecombineStackedImage,
+)
 from components.slot_attention import SlotAttention, SoftPositionEmbed
 
 import components.inputlayers.image
@@ -27,32 +31,6 @@ configlib.add_arguments_dict(
     add_argument, components.inputlayers.image.configurable, prefix="image"
 )
 # ---------------------------
-
-
-class RecombineStackedImage(L.Layer):
-    """Recombines a broadcasted image reconstruction."""
-
-    def __init__(self, num_channels: int = 3, **kwargs):
-        super().__init__(**kwargs)
-        self.num_channels = num_channels
-
-    def call(self, inputs: tf.Tensor, **kwargs):
-        """Unstack, split and recombine reconstructed image."""
-        # inputs (B, S, E), (B*S, W, H, 4)
-        # We pass both inputs to reshape B*S into S
-        new_shape = tf.concat([tf.shape(inputs[0])[:2], tf.shape(inputs[1])[1:]], 0)
-        # (B, S, W, H, 4)
-        unstacked = tf.reshape(inputs[1], new_shape)  # (B, S, W, H, 4)
-        channels, masks = tf.split(
-            unstacked, [self.num_channels, 1], -1
-        )  # [(B, S, W, H, 3), (B, S, W, H, 1)]
-        masks = tf.nn.softmax(masks, axis=1)  # (B, S, W, H, 1)
-        reconstruction = tf.reduce_sum(channels * masks, axis=1)  # (B, W, H, 3)
-        return {
-            "reconstruction": reconstruction,
-            "recon_masks": masks,
-            "slot_recon": channels,
-        }
 
 
 def process_image(image: tf.Tensor, _: Dict[str, Any]) -> tf.Tensor:

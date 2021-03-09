@@ -36,6 +36,19 @@ class TestSpacialBroadcast(tf.test.TestCase):
         self.assertEqual(res.shape, [8, 7, 9, 8, 4])
 
 
+class TestRecombineStackedImage(tf.test.TestCase):
+    """Test cases for recombining stacked images."""
+
+    def test_2d_recombination(self):
+        """Can recombine 2d grids."""
+        objects = tf.random.normal((4, 2, 4))
+        combined = tf.random.normal((8, 3, 3, 4))
+        res = util_layers.RecombineStackedImage(num_channels=3)([objects, combined])
+        self.assertEqual(res["combined"].shape, [4, 3, 3, 3])
+        self.assertEqual(res["recon_masks"].shape, [4, 2, 3, 3, 1])
+        self.assertEqual(res["reconstructions"].shape, [4, 2, 3, 3, 3])
+
+
 class TestMergeFacts(tf.test.TestCase):
     """Unit test cases merging dictionary based facts."""
 
