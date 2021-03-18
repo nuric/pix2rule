@@ -31,14 +31,14 @@ configurable: Dict[str, Dict[str, Any]] = {
 class RelaxedObjectSelection(L.Layer):
     """Select a subset of objects based on object score."""
 
+    inversion_score = 100  # Score substracted from a selected object.
+
     def __init__(self, num_select: int = 2, initial_temperature: float = 0.5, **kwargs):
         super().__init__(**kwargs)
         self.num_select = num_select
         self.initial_temperature = initial_temperature
         # We use a higher starting bias value so that the score inversion is more stable
-        self.object_score = L.Dense(
-            1, bias_initializer=tf.keras.initializers.Constant(10)
-        )
+        self.object_score = L.Dense(1)
         self.temperature = self.add_weight(
             name="temperature",
             initializer=tf.keras.initializers.Constant(initial_temperature),
@@ -65,7 +65,10 @@ class RelaxedObjectSelection(L.Layer):
             ).sample()  # (B, O)
             sample = tf.cast(sample, tf.float32)  # (B, O)
             atts.append(sample)
-            last_select = sample * (-last_select) + (1 - sample) * last_select
+            last_select = (
+                sample * (last_select - self.inversion_score)
+                + (1 - sample) * last_select
+            )
         object_atts = tf.stack(atts, 1)  # (B, N, O)
         # ---------------------------
         # Select the objects based on the attention
