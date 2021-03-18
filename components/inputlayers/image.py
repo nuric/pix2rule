@@ -91,8 +91,21 @@ class RelationsGameImageInput(BaseImageInput):
         super().__init__(**kwargs)
         # Values taken from paper: https://arxiv.org/pdf/1905.10307.pdf
         # and downsized to save computing resources
-        self.encoder_cnn = L.Conv2D(
-            self.hidden_size, 4, strides=2, activation=self.activation
+        self.encoder_cnn = tf.keras.Sequential(
+            [
+                # L.Conv2D(
+                #     self.hidden_size,
+                #     kernel_size=2,
+                #     strides=2,
+                #     activation=self.activation,
+                # ),
+                L.Conv2D(
+                    self.hidden_size,
+                    kernel_size=4,
+                    strides=4,
+                    activation=self.activation,
+                ),
+            ]
         )
 
 
