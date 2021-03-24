@@ -12,7 +12,9 @@ import components.inputlayers.image
 import utils.factory
 
 # Setup configurable parameters of the model
-add_argument = configlib.add_group("MLP Image Model Options.", prefix="mlp")
+add_argument = configlib.add_group(
+    "MLP Image Model Options.", prefix="mlp_image_classifier"
+)
 # ---
 # Image layer parameters
 configlib.add_arguments_dict(
@@ -73,7 +75,7 @@ def build_model(  # pylint: disable=too-many-locals
     model = tf.keras.Model(
         inputs=mlp_inputs["input_layers"],
         outputs=predictions,
-        name="mlp_model",
+        name="mlp_image_classifier",
     )
     # ---------------------------
     # Compile model for training
