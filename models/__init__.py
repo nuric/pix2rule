@@ -7,7 +7,7 @@ from configlib import config as C
 
 from . import dnf_image_classifier
 from . import predinet
-from . import mlp
+from . import mlp_image_classifier
 from . import slot_autoencoder
 
 # ---------------------------
@@ -18,7 +18,7 @@ registry = {
     "dnf_image_classifier": dnf_image_classifier.build_model,
     "predinet": predinet.build_model,
     "slot_ae": slot_autoencoder.build_model,
-    "mlp": mlp.build_model,
+    "mlp_image_classifier": mlp_image_classifier.build_model,
 }
 # ---------------------------
 
