@@ -484,6 +484,10 @@ def load_data() -> Tuple[  # pylint: disable=too-many-locals
         "inputs": inputs,
         "outputs": outputs,
         "datasets": list(dsets.keys()),
+        "metadata": {
+            "num_conjuncts": C["gendnf_num_conjuncts"],
+            "num_variables": C["gendnf_num_variables"],
+        },
     }
     # ---------------------------
     return description, dsets
