@@ -11,6 +11,7 @@ import tensorflow as tf
 import configlib
 from configlib import config as C
 import utils.hashing
+import utils.clingo
 
 logger = logging.getLogger(__name__)
 
@@ -398,11 +399,26 @@ def generate_data() -> str:  # pylint: disable=too-many-locals
     flat_in = flatten_interpretation(nullary, unary, binary)  # (B', IN)
     _, unique_idxs = np.unique(flat_in, return_index=True, axis=0)  # (<B',)
     data = {k: v[unique_idxs] for k, v in data.items()}
+    logger.info("Managed to generate %i many unique examples", data["nullary"].shape[0])
+    # ---------------------------
+    logger.info("Sending random samples to clingo for sanity check.")
+    ridxs = rng.integers(data["nullary"].shape[0], size=100)  # (B,)
+    sample = {k: v[ridxs] for k, v in data.items()}
+    rule_dict = {
+        "and_kernel": and_kernel,
+        "or_kernel": or_kernel,
+        "num_variables": numVars,
+    }
+    results = utils.clingo.clingo_check(sample, rule_dict)
+    assert np.all(
+        results == (sample["target"] == 1)
+    ), "Clingo sanity check did not match target labels."
+    # ---------------------------
+    # Add extra useful info just in case
     data["and_kernel"] = and_kernel
     data["or_kernel"] = or_kernel
     data["num_vars"] = numVars
     data["num_objects"] = numObjs
-    logger.info("Managed to generate %i many unique examples", data["nullary"].shape[0])
     # ---------------------------
     # We're done, save the file
     logger.info("Creating %s with keys: %s", str(fpath), str(data.keys()))
