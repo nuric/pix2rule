@@ -6,6 +6,7 @@ import configlib
 from configlib import config as C
 
 from . import dnf_image_classifier
+from . import dnf_rule_learner
 from . import predinet
 from . import mlp_image_classifier
 from . import slot_autoencoder
@@ -16,6 +17,7 @@ from . import slot_autoencoder
 # type checker seems to not recognise what is going above
 registry = {
     "dnf_image_classifier": dnf_image_classifier.build_model,
+    "dnf_rule_learner": dnf_rule_learner.build_model,
     "predinet": predinet.build_model,
     "slot_ae": slot_autoencoder.build_model,
     "mlp_image_classifier": mlp_image_classifier.build_model,
