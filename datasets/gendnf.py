@@ -25,19 +25,19 @@ add_argument(
 )
 add_argument(
     "--num_nullary",
-    default=4,
+    default=6,
     type=int,
     help="Number of nullary predicates.",
 )
 add_argument(
     "--num_unary",
-    default=4,
+    default=7,
     type=int,
     help="Number of unary predicates in the language.",
 )
 add_argument(
     "--num_binary",
-    default=4,
+    default=8,
     type=int,
     help="Number of binary predicates in the language.",
 )
@@ -296,7 +296,11 @@ def generate_data() -> str:  # pylint: disable=too-many-locals
             )
     # ---------------------------
     # Now let's generate the final disjunction, luckily it's a one off
-    or_kernel = rng.choice([-1, 0, 1], size=(numConjuncts,))  # (H,)
+    # We only generate either in disjunction or not since having negation of conjuncts
+    # does not conform to normal logic programs. That is, you never get p <- not (q, r)
+    or_kernel = rng.choice([0, 1], size=(numConjuncts,))  # (H,)
+    while not or_kernel.any():  # We want at least one conjunction
+        or_kernel = rng.choice([0, 1], size=(numConjuncts,))  # (H,)
     # That's the rule done, we have a kernel for conjunctions and an outer kernel for disjunctions
     # ---------------------------
     # Generate positive examples, we will reverse engineer the or_kernel and and_kernel
@@ -304,12 +308,12 @@ def generate_data() -> str:  # pylint: disable=too-many-locals
     # to get a positive example. So we take a more principled approach
     # We'll pick one conjunction to satisfy
     conjunct_idx = np.flatnonzero(or_kernel)  # (<H,)
-    conjunct_idx = rng.choice(conjunct_idx)  # ()
-    ckernel = and_kernel[conjunct_idx]  # (IN,)
+    conjunct_idx = rng.choice(conjunct_idx, size=gen_size)  # (B,)
+    ckernel = and_kernel[conjunct_idx]  # (B, IN)
     # Now we generate an interpretation that will satisfy ckernel
     # if the predicates are in the rule then take their value
     # otherwise it could be random, we don't care
-    cmask = ckernel == 0  # (IN,)
+    cmask = ckernel == 0  # (B, IN)
     pos_example = (
         cmask * rng.choice([-1, 1], size=(gen_size, in_size)) + (1 - cmask) * ckernel
     )  # (B, IN)
@@ -438,7 +442,9 @@ def load_data() -> Tuple[  # pylint: disable=too-many-locals
     # Curate the tf.data.Dataset
     dsets: Dict[str, tf.data.Dataset] = dict()
     for dname, didxs in dsetidxs.items():
-        input_dict = {a: dnpz[a][didxs] for a in ("nullary", "unary", "binary")}
+        input_dict = {
+            a: dnpz[a][didxs].astype(np.float32) for a in ("nullary", "unary", "binary")
+        }
         # {'nullary': (tsize,), 'binary': ...}
         label = dnpz["target"][didxs]
         # Optionally add noise to labels by flipping them
@@ -470,8 +476,7 @@ def load_data() -> Tuple[  # pylint: disable=too-many-locals
             "dtype": output_spec["label"].dtype,
             "num_categories": 1,
             "type": "multilabel",
-            # We are learning a nullary predicate for each label
-            "target_rules": [0],
+            "target_rules": [0],  # 1 predicate to learn with arity 0
         }
     }
     description = {
