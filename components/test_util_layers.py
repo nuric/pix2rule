@@ -76,9 +76,11 @@ class TestMergeFacts(tf.test.TestCase):
         """Missing keys get merged into a single dictionary."""
         facts1 = {"nullary": tf.random.normal((4, 2))}
         facts2 = {"unary": tf.random.normal((4, 3))}
-        res = util_layers.MergeFacts()([facts1, facts2])
+        facts3 = {"binary": tf.random.normal((4, 3, 2, 6))}
+        res = util_layers.MergeFacts()([facts1, facts2, facts3])
         self.assertEqual(res["nullary"].shape, [4, 2])
         self.assertEqual(res["unary"].shape, [4, 3])
+        self.assertEqual(res["binary"].shape, [4, 3, 2, 6])
 
 
 class TestShuffle(tf.test.TestCase):

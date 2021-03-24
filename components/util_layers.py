@@ -65,9 +65,12 @@ class MergeFacts(tf.keras.layers.Layer):
         facts = {**inputs[0]}  # Start with left most and reduce towards right
         for fact_dict in inputs[1:]:
             for key, tensor in fact_dict.items():
-                facts[key] = (
-                    tf.concat([facts[key], tensor], -1) if key in facts else tensor
-                )
+                if key in facts:
+                    facts[key] = (
+                        tf.concat([facts[key], tensor], -1) if key in facts else tensor
+                    )
+                else:
+                    facts[key] = tensor
         # Optionally add missing nullary entry
         if "nullary" not in facts:
             facts["nullary"] = tf.zeros(
