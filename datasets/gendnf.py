@@ -88,6 +88,11 @@ add_argument(
     type=int,
     help="Random number generator seed.",
 )
+add_argument(
+    "--return_numpy",
+    action="store_true",
+    help="Return raw numpy arrays instead of tf data.",
+)
 # ---------------------------
 
 
@@ -478,23 +483,40 @@ def load_data() -> Tuple[  # pylint: disable=too-many-locals
             tfdata = tfdata.shuffle(1000).batch(C["gendnf_batch_size"]).repeat()
         else:
             tfdata = tfdata.batch(C["gendnf_batch_size"])
+        if C["gendnf_return_numpy"]:
+            tfdata = (input_dict, output_dict)
         dsets[dname] = tfdata
     # ---------------------------
     # Generate description
-    inputs = {
-        k: {"shape": tuple(v.shape), "dtype": v.dtype}
-        for k, v in dsets["train"].element_spec[0].items()
-    }
-    output_spec = dsets["train"].element_spec[1]
-    outputs = {
-        "label": {
-            "shape": tuple(output_spec["label"].shape),
-            "dtype": output_spec["label"].dtype,
-            "num_categories": 1,
-            "type": "multilabel",
-            "target_rules": [0],  # 1 predicate to learn with arity 0
+    if C["gendnf_return_numpy"]:
+        inputs = {
+            k: {"shape": tuple(v.shape), "dtype": v.dtype}
+            for k, v in dsets["train"][0].items()
         }
-    }
+        outputs = {
+            "label": {
+                "shape": tuple(dsets["train"][1]["label"].shape),
+                "dtype": dsets["train"][1]["label"].dtype,
+                "num_categories": 1,
+                "type": "multilabel",
+                "target_rules": [0],  # 1 predicate to learn with arity 0
+            }
+        }
+    else:
+        inputs = {
+            k: {"shape": tuple(v.shape), "dtype": v.dtype}
+            for k, v in dsets["train"].element_spec[0].items()
+        }
+        output_spec = dsets["train"].element_spec[1]
+        outputs = {
+            "label": {
+                "shape": tuple(output_spec["label"].shape),
+                "dtype": output_spec["label"].dtype,
+                "num_categories": 1,
+                "type": "multilabel",
+                "target_rules": [0],  # 1 predicate to learn with arity 0
+            }
+        }
     description = {
         "name": "gendnf",
         "inputs": inputs,
