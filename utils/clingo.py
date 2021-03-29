@@ -1,10 +1,12 @@
 """Thin wrapper around command line clingo."""
 from typing import Dict, List
+import re
 import itertools
 import subprocess
 import os
 
 import numpy as np
+import tqdm
 
 
 def clingo_check(
@@ -46,13 +48,21 @@ def clingo_check(
     # Construct the rule
     conjuncts: List[str] = list()
     for conjunct in rule["and_kernel"]:
-        cstr = ", ".join(
-            [
-                n if i == 1 else "not " + n
-                for n, i in zip(pred_names, conjunct)
-                if i != 0
-            ]
-        )  # ['n0', '-p0(V1)', ...]
+        conjs = [
+            n if i == 1 else "-" + n for n, i in zip(pred_names, conjunct) if i != 0
+        ]
+        # ['n0', '-p0(V1)', ...]
+        # ---------------------------
+        # Let's also add the uniqueness of variables assumption
+        conj_vars = [
+            v for c in conjs for v in re.findall(r"V\d", c)
+        ]  # ['V1', 'V2', ...]
+        conj_vars = list(set(conj_vars))
+        for i, first_var in enumerate(conj_vars):
+            for second_var in conj_vars[i + 1 :]:
+                conjs.append(f"{first_var} != {second_var}")
+        # ---------------------------
+        cstr = ", ".join(conjs)
         conjuncts.append(cstr)
     # Target rule t is now defined according to which conjuncts are in the rule
     assert (
@@ -70,7 +80,7 @@ def clingo_check(
     batch_size = interpretation["nullary"].shape[0]  # B
     num_objects = interpretation["unary"].shape[1]  # O
     results: List[bool] = list()
-    for bidx in range(batch_size):
+    for bidx in tqdm.trange(batch_size):
         logic_program = rule_lines.copy()
         nullary = interpretation["nullary"][bidx]  # (P0,)
         unary = interpretation["unary"][bidx]  # (O, P1)
@@ -78,13 +88,13 @@ def clingo_check(
         # ---------------------------
         # Add nullary facts.
         logic_program.extend(
-            [f"n{i}." if nullary[i] == 1 else "" for i in range(num_nullary)]
+            [f"n{i}." if nullary[i] == 1 else f"-n{i}." for i in range(num_nullary)]
         )
         # ---------------------------
         # Add unary facts.
         logic_program.extend(
             [
-                f"p{j}(o{i})." if unary[i, j] == 1 else ""
+                f"p{j}(o{i})." if unary[i, j] == 1 else f"-p{j}(o{i})."
                 for i, j in itertools.product(range(num_objects), range(num_unary))
             ]
         )
@@ -93,7 +103,9 @@ def clingo_check(
         obj_bidxs = np.stack(np.nonzero(1 - np.eye(num_objects))).T  # (O*(O-1), 2)
         logic_program.extend(
             [
-                f"q{k}(o{i},o{j})." if binary[i, j - (j >= i), k] == 1 else ""
+                f"q{k}(o{i},o{j})."
+                if binary[i, j - (j >= i), k] == 1
+                else f"-q{k}(o{i},o{j})."
                 for (i, j), k in itertools.product(obj_bidxs, range(num_binary))
             ]
         )
@@ -108,8 +120,8 @@ def clingo_check(
             ["clingo", "clingo_temp.lp"], capture_output=True, check=False, text=True
         )
         results.append("UNSATISFIABLE" not in res.stdout)
-        # ---------------------------
-        # Clean up
-        os.remove("clingo_temp.lp")
+    # ---------------------------
+    # Clean up
+    os.remove("clingo_temp.lp")
     # ---------------------------
     return np.array(results)  # (B,)
