@@ -1,5 +1,6 @@
 """Experiment configuration generator."""
 from typing import Any, Dict, List
+import datetime
 import json
 import pprint
 import random
@@ -26,13 +27,15 @@ print(f"There are {len(C.keys())} many configuration parameters.")
 # ---------------------------
 
 all_experiments: List[Dict[str, Any]] = list()
+current_dt = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 # ---------------------------
 # Relsgame dataset with different training sizes
 relsgame_exp = {
-    "experiment_name": "relsgame_1k_full",
-    "max_steps": 30000,
+    "tracking_uri": "http://muli.doc.ic.ac.uk:8888",
+    "experiment_name": "relsgame-full-" + current_dt,
+    "max_steps": 60000,
     "eval_every": 200,  # divide max_steps by this to get epochs in keras
-    "learning_rate": 0.001,
+    "learning_rate": [0.001, 0.01],
     "dataset_name": "relsgame",
     "relsgame_tasks": [
         ["same"],
@@ -42,27 +45,31 @@ relsgame_exp = {
         ["colour_and_or_shape"],
         [],
     ],
-    "relsgame_train_size": 1000,
+    "relsgame_train_size": [1000, 5000, 10000],
     "relsgame_validation_size": 1000,
     "relsgame_test_size": 1000,
-    "relsgame_batch_size": 64,
+    "relsgame_batch_size": 128,
+    "run_count": list(range(5)),
 }
 relsgame_models: List[Dict[str, Any]] = [
     {
         "model_name": "dnf_image_classifier",
         "dnf_image_layer_name": "RelationsGameImageInput",
         "dnf_image_hidden_size": 32,
-        "dnf_image_activation": "relu",
-        "dnf_image_noise_stddev": 0.0,
+        "dnf_image_activation": ["relu", "tanh"],
+        "dnf_image_noise_stddev": 0.01,
         "dnf_image_with_position": True,
         "dnf_object_sel_layer_name": "RelaxedObjectSelection",
         "dnf_object_sel_num_select": 4,
-        "dnf_object_sel_initial_temperature": 0.5,
+        "dnf_object_sel_initial_temperature": 1.0,
         "dnf_object_feat_layer_name": "LinearObjectFeatures",
         "dnf_object_feat_unary_size": 6,
         "dnf_object_feat_binary_size": 12,
-        "dnf_hidden_predicates": [],
-        "dnf_iterations": 2,
+        "dnf_object_feat_activation": "sigmoid",
+        "dnf_inference_layer_name": "DNF",
+        "dnf_inference_num_total_variables": 3,
+        "dnf_inference_num_conjuncts": 8,
+        "dnf_iterations": 1,
         "relsgame_one_hot_labels": True,
     },
     {
@@ -72,13 +79,15 @@ relsgame_models: List[Dict[str, Any]] = [
         "predinet_image_activation": "relu",
         "predinet_image_noise_stddev": 0.0,
         "predinet_image_with_position": True,
-        "predinet_relations": 12,
-        "predinet_heads": 8,
+        "predinet_relations": 6,
+        "predinet_heads": 12,
         "predinet_key_size": 32,
         "predinet_output_hidden_size": 64,
     },
 ]
-relsgame_exps = hp.chain(hp.generate(relsgame_exp), relsgame_models)
+relsgame_exps = hp.chain(
+    hp.generate(relsgame_exp), *[hp.generate(m) for m in relsgame_models]
+)
 all_experiments.extend(relsgame_exps)
 # ---------------------------
 # Ask user if they are on the right path (?)
