@@ -414,7 +414,7 @@ def generate_data() -> str:  # pylint: disable=too-many-locals
         "or_kernel": or_kernel,
         "num_variables": numVars,
     }
-    results = utils.clingo.clingo_check(sample, rule_dict)
+    results = utils.clingo.clingo_tensor_rule_check(sample, rule_dict)
     assert np.all(
         results == (sample["target"] == 1)
     ), "Clingo sanity check did not match target labels."
@@ -424,6 +424,7 @@ def generate_data() -> str:  # pylint: disable=too-many-locals
     data["or_kernel"] = or_kernel
     data["num_vars"] = numVars
     data["num_objects"] = numObjs
+    data["rule_str"] = utils.clingo.tensor_rule_to_strings(sample, rule_dict)
     # ---------------------------
     # We're done, save the file
     logger.info("Creating %s with keys: %s", str(fpath), str(data.keys()))

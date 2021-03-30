@@ -135,16 +135,15 @@ def tensor_interpretations_to_strings(
     return programs
 
 
-def clingo_check(
-    interpretation: Dict[str, np.ndarray], rule: Dict[str, np.ndarray]
+def clingo_rule_check(
+    interpretation: Dict[str, np.ndarray], rule: List[str]
 ) -> np.ndarray:
-    """Generates logic program files and runs them with clingo to check satisfiability."""
+    """Generate a logic program with each interpretation and rule to check satisfiability."""
     # interpretation {'nullary': (B, P0), 'unary': (B, O, P1), 'binary': (B, O, O-1, P2)}
-    # rule {'and_kernel': (H, IN), 'or_kernel': (H,), 'num_variables': int}
+    # rule ["t :- ...", "t :- ..."]
     # ---------------------------
     # target rule must be satisfied, to get satisfiable output
-    rule_lines: List[str] = [":- not t."]
-    rule_lines.extend(tensor_rule_to_strings(interpretation, rule))
+    rule_lines: List[str] = [":- not t."] + rule
     # ---------------------------
     # That's the rule done, now add the interpretation
     num_objects = interpretation["unary"].shape[1]  # O
@@ -156,3 +155,16 @@ def clingo_check(
         results.append(run_clingo(rule_lines + ground_interpretation))
     # ---------------------------
     return np.array(results)  # (B,)
+
+
+def clingo_tensor_rule_check(
+    interpretation: Dict[str, np.ndarray], rule: Dict[str, np.ndarray]
+) -> np.ndarray:
+    """Generates logic program files and runs them with clingo to check satisfiability."""
+    # interpretation {'nullary': (B, P0), 'unary': (B, O, P1), 'binary': (B, O, O-1, P2)}
+    # rule {'and_kernel': (H, IN), 'or_kernel': (H,), 'num_variables': int}
+    # ---------------------------
+    # target rule must be satisfied, to get satisfiable output
+    return clingo_rule_check(
+        interpretation, tensor_rule_to_strings(interpretation, rule)
+    )
