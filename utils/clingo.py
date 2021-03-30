@@ -55,6 +55,7 @@ def clingo_check(
         ]  # ['V1', 'V2', ...]
         conj_vars = list(set(conj_vars))
         for i, first_var in enumerate(conj_vars):
+            conjs.append(f"obj({first_var})")
             for second_var in conj_vars[i + 1 :]:
                 conjs.append(f"{first_var} != {second_var}")
         # ---------------------------
@@ -75,6 +76,7 @@ def clingo_check(
     # That's the rule done, now add the interpretation
     batch_size = interpretation["nullary"].shape[0]  # B
     num_objects = interpretation["unary"].shape[1]  # O
+    rule_lines.append(f"obj(0..{num_objects-1}).")
     results: List[bool] = list()
     for bidx in tqdm.trange(batch_size):
         logic_program = rule_lines.copy()
