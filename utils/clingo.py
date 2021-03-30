@@ -23,24 +23,20 @@ def clingo_check(
     # ---------------------------
     var_bidxs = np.stack(np.nonzero(1 - np.eye(num_variables))).T  # (V*(V-1), 2)
     pred_names = (
-        [f"n{i}" for i in range(num_nullary)]
+        [f"nullary({i})" for i in range(num_nullary)]
         + [
-            f"p{j}(V{i})"
+            f"unary(V{i},{j})"
             for i, j in itertools.product(range(num_variables), range(num_unary))
         ]
         + [
-            f"q{k}(V{i},V{j})"  # There is this modulus business because we omit p(X,X)
+            f"binary(V{i},V{j},{k})"  # There is this modulus business because we omit p(X,X)
             for (i, j), k in itertools.product(var_bidxs, range(num_binary))
         ]
     )  # This is a mess that produces "n0..n, p1..n(V1), p1...n(V2), etc"
     # Here is a full dump for our sanity:
-    # ['n0', 'n1', 'n2', 'n3', 'p0(V0)', 'p1(V0)', 'p2(V0)', 'p3(V0)',
-    # 'p0(V1)', 'p1(V1)', 'p2(V1)', 'p3(V1)', 'p0(V2)', 'p1(V2)', 'p2(V2)',
-    # 'p3(V2)', 'q0(V0,V1)', 'q1(V0,V1)', 'q2(V0,V1)', 'q3(V0,V1)',
-    # 'q0(V0,V2)', 'q1(V0,V2)', 'q2(V0,V2)', 'q3(V0,V2)', 'q0(V1,V0)',
-    # 'q1(V1,V0)', 'q2(V1,V0)', 'q3(V1,V0)', 'q0(V1,V2)', 'q1(V1,V2)',
-    # 'q2(V1,V2)', 'q3(V1,V2)', 'q0(V2,V0)', 'q1(V2,V0)', 'q2(V2,V0)',
-    # 'q3(V2,V0)', 'q0(V2,V1)', 'q1(V2,V1)', 'q2(V2,V1)', 'q3(V2,V1)']
+    # ['nullary(0)', 'unary(V0,0)', 'unary(V0,1)', 'unary(V1,0)',
+    # 'unary(V1,1)', 'binary(V0,V1,0)', 'binary(V0,V1,1)', 'binary(V1,V0,0)',
+    # 'binary(V1,V0,1)']
     # ---------------------------
     # target rule must be satisfied, to get satisfiable output
     rule_lines: List[str] = [":- not t."]
@@ -49,7 +45,7 @@ def clingo_check(
     conjuncts: List[str] = list()
     for conjunct in rule["and_kernel"]:
         conjs = [
-            n if i == 1 else "-" + n for n, i in zip(pred_names, conjunct) if i != 0
+            n if i == 1 else "not " + n for n, i in zip(pred_names, conjunct) if i != 0
         ]
         # ['n0', '-p0(V1)', ...]
         # ---------------------------
@@ -65,8 +61,8 @@ def clingo_check(
         cstr = ", ".join(conjs)
         conjuncts.append(cstr)
     # Target rule t is now defined according to which conjuncts are in the rule
-    assert (
-        rule["or_kernel"].min() == 0
+    assert np.all(
+        rule["or_kernel"] != -1
     ), "Clingo cannot work with negated conjunctions inside a disjunction."
     # or_kernel [0, 1, 0, 0, ...] x H
     disjuncts = [
@@ -88,13 +84,13 @@ def clingo_check(
         # ---------------------------
         # Add nullary facts.
         logic_program.extend(
-            [f"n{i}." if nullary[i] == 1 else f"-n{i}." for i in range(num_nullary)]
+            [f"nullary({i})." if nullary[i] == 1 else "" for i in range(num_nullary)]
         )
         # ---------------------------
         # Add unary facts.
         logic_program.extend(
             [
-                f"p{j}(o{i})." if unary[i, j] == 1 else f"-p{j}(o{i})."
+                f"unary({i},{j})." if unary[i, j] == 1 else ""
                 for i, j in itertools.product(range(num_objects), range(num_unary))
             ]
         )
@@ -103,9 +99,7 @@ def clingo_check(
         obj_bidxs = np.stack(np.nonzero(1 - np.eye(num_objects))).T  # (O*(O-1), 2)
         logic_program.extend(
             [
-                f"q{k}(o{i},o{j})."
-                if binary[i, j - (j >= i), k] == 1
-                else f"-q{k}(o{i},o{j})."
+                f"binary({i},{j},{k})." if binary[i, j - (j >= i), k] == 1 else ""
                 for (i, j), k in itertools.product(obj_bidxs, range(num_binary))
             ]
         )
