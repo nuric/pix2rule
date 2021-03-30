@@ -1,10 +1,14 @@
 """Training script for pix2rule."""
+from typing import List, Dict
 import logging
 import datetime
 from pathlib import Path
+import re
 import sys
 import signal
 import socket
+import subprocess
+import shutil
 
 import numpy as np
 import absl.logging
@@ -20,6 +24,7 @@ import models
 import utils.callbacks
 import utils.exceptions
 import utils.hashing
+import utils.clingo
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -40,6 +45,12 @@ add_argument(
     help="Optional experiment name, default current datetime.",
 )
 add_argument("--data_dir", default="data", help="Data folder.")
+add_argument(
+    "--train_type",
+    default="deep",
+    choices=["deep", "ilasp", "fastlas"],
+    help="Type of model to train.",
+)
 add_argument(
     "--max_steps",
     default=4000,
@@ -68,6 +79,171 @@ add_argument(
 )
 
 # ---------------------------
+
+
+def train_ilp(run_name: str = None, initial_epoch: int = 0):
+    """Train symbolic learners ILASP and FastLAS."""
+    # ---------------------------
+    # Load data
+    task_description, dsets = datasets.get_dataset().load_data()
+    logger.info("Loaded dataset: %s", str(task_description))
+    # ---------------------------
+    # Setup artifacts and check if we are resuming
+    run_name = run_name or utils.hashing.dict_hash(C)
+    art_dir = Path(C["data_dir"]) / "active_runs" / C["experiment_name"] / run_name
+    art_dir.mkdir(parents=True, exist_ok=True)
+    logger.info("Local artifact dir is %s", str(art_dir))
+    # ---------------------------
+    # Generate training file
+    num_nullary = task_description["inputs"]["nullary"]["shape"][-1]  # num_nullary
+    num_unary = task_description["inputs"]["unary"]["shape"][-1]  # num_unary
+    num_binary = task_description["inputs"]["binary"]["shape"][-1]  # num_binary
+    num_objects = task_description["inputs"]["unary"]["shape"][1]  # O
+    num_variables = task_description["metadata"]["num_variables"]  # V
+    # ---
+    lines: List[str] = [
+        "#modeh(t).",  # Our target we are learning, t :- ...
+        f"#maxv({num_variables}).",  # Max number of variables.
+        "#modeb(neq(var(obj), var(obj))).",  # Uniqueness of variables assumption.
+        "neq(X, Y) :- obj(X), obj(Y), X != Y.",  # Definition of not equals.
+        f"obj(0..{num_objects-1}).",  # Definition of objects, 0..n is inclusive so we subtract 1
+        # These are bias constraints to adjust search space
+        '#bias(":- body(neq(X, Y)), X >= Y.").',  # remove neg redundencies
+        '#bias(":- body(naf(neq(X, Y))).").',  # We don't need not neg(..) in the rule
+        '#bias(":- used(X), used(Y), X!=Y, not diff(X,Y).").',  # Make sure variable use is unique
+        '#bias("diff(X,Y):- body(neq(X,Y)).").',
+        '#bias("diff(X,Y):- body(neq(Y,X)).").',
+        '#bias(":- body(neq(X, _)), not used(X).").',  # Make sure variable is used
+        '#bias(":- body(neq(_, X)), not used(X).").',  # Make sure variable is used
+        '#bias("used(X) :- body(unary(X, _)).").',  # We use a variable if it is in a unary
+        '#bias("used(X) :- body(naf(unary(X, _))).").',
+        '#bias("used(X) :- body(binary(X, _, _)).").',  # or a binary atom
+        '#bias("used(X) :- body(binary(_, X, _)).").',
+        '#bias("used(X) :- body(naf(binary(X, _, _))).").',
+        '#bias("used(X) :- body(naf(binary(_, X, _))).").',
+        '#bias(":- body(binary(X, X, _)).").',  # binary predicates are anti-reflexive
+        '#bias(":- body(naf(binary(X, X, _))).").',
+    ]
+    # ---
+    # Add nullary search space
+    lines.append(f"#modeb({num_nullary}, nullary(const(nullary_type))).")
+    # Add unary search space
+    unary_size = num_variables * num_unary
+    lines.append(f"#modeb({unary_size}, unary(var(obj), const(unary_type))).")
+    # Add binary search space
+    binary_size = num_variables * (num_variables - 1) * num_binary
+    lines.append(
+        f"#modeb({binary_size}, binary(var(obj), var(obj), const(binary_type)))."
+    )
+    # Add constants
+    for ctype, count in [
+        ("obj", num_objects),
+        ("nullary_type", num_nullary),
+        ("unary_type", num_unary),
+        ("binary_type", num_binary),
+    ]:
+        for i in range(count):
+            lines.append(f"#constant({ctype}, {i}).")
+    # Add max penalty for ILASP
+    total_size = num_nullary + unary_size + binary_size
+    if C["train_type"] == "ilasp":
+        lines.append(f"#max_penalty({total_size*2}).")
+    # ---------------------------
+    # Let's now generate and add examples
+    logger.info("dataset: %s", str(task_description))
+    examples = {**dsets["train"][0], **dsets["train"][1]}
+    # {'nullary': (B, P0), 'unary': (B, O, P1), 'binary': (B, O, O-1, P2), 'label': (B,)}
+    string_examples = utils.clingo.tensor_interpretations_to_strings(
+        examples
+    )  # list of lists
+    logger.info("Generating %i examples.", len(string_examples))
+    for i, (str_example, label) in enumerate(
+        zip(string_examples, dsets["train"][1]["label"])
+    ):
+        # ---------------------------
+        # Write the examples
+        # We only have positive examples in which we either want t to be entailed
+        # or not, and setup using inclusion and exclusions
+        if label == 1:
+            lines.append(f"#pos(eg{i}, {{t}}, {{}}, {{")
+        else:
+            lines.append(f"#pos(eg{i}, {{}}, {{t}}, {{")
+        lines.extend(str_example)
+        lines.append("}).")
+    # ---------------------------
+    # Save training file
+    train_file = art_dir / "train.lp"
+    with train_file.open("w") as fout:
+        fout.writelines(f"{l}\n" for l in lines)
+    with open("train_las.lp", "w") as fout:
+        fout.writelines(f"{l}\n" for l in lines)
+    # ---------------------------
+    # Run the training, assuming ILASP and FastLAS in $PATH
+    ilasp_cmd = [
+        "ILASP",
+        "--version=4",
+        "--no-constraints",
+        "--no-aggregates",
+        f"-ml={total_size * 2}",  # We increase the size to allow for X!=Y etc in the rule
+        f"--max-rule-length={total_size * 2}",
+        "--strict-types",
+        str(train_file),
+    ]
+    fastlas_cmd = ["FastLAS", str(train_file)]
+    # Run command with a timeout of 1 hour
+    logger.info("Running symbolic learner.")
+    try:
+        res = subprocess.run(
+            ilasp_cmd, capture_output=True, check=True, text=True, timeout=3600
+        )
+        # res.stdout looks like this for ILASP:
+        # t :- not nullary(0); unary(V1,0); obj(V1).
+        # t :- not binary(V1,V2,0); not binary(V2,V1,0); ...
+
+        # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        # %% Pre-processing                          : 0.002s
+        # %% Hypothesis Space Generation             : 0.053s
+        # %% Conflict analysis                       : 1.789s
+        # %%   - Positive Examples                   : 1.789s
+        # %% Counterexample search                   : 0.197s
+        # %%   - CDOEs                               : 0s
+        # %%   - CDPIs                               : 0.196s
+        # %% Hypothesis Search                       : 0.167s
+        # %% Total                                   : 2.229s
+        # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        with (art_dir / "train_cmd_out.txt").open("w") as fout:
+            fout.write(res.stdout)
+    except subprocess.TimeoutExpired:
+        # We ran out of time
+        learnt_rules: List[str] = list()  # [r1, r2] in string form
+        total_time = 3600.0
+    else:
+        res_lines = [l for l in res.stdout.split("\n") if l]
+        comment_index = res_lines.index(
+            r"%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%"
+        )
+        learnt_rules = res_lines[:comment_index]  # [r1, r2] in string form
+        total_time = float(re.findall(r"\d.\d+", res_lines[-2])[0])
+    logger.info("Learnt rules are %s", learnt_rules)
+    logger.info("Total runtime was %f seconds.", total_time)
+    # ---------------------------
+    # Run the validation and test pipelines
+    logger.info("Running validation.")
+    learnt_program = learnt_rules + ["neq(X, Y) :- obj(X), obj(Y), X != Y."]
+    with (art_dir / "learnt_program.lp").open("w") as fout:
+        fout.write("\n".join(learnt_program))
+    # ---------------------------
+    report: Dict[str, float] = {"time": total_time}
+    for key in dsets.keys():
+        res = utils.clingo.clingo_rule_check(dsets[key][0], learnt_program)
+        acc = np.mean(res == dsets[key][1]["label"])
+        logger.info("%s accuracy is %f", key, acc)
+        report[key + "_acc"] = acc
+    # ---------------------------
+    # Save artifacts to mlflow
+    mlflow.log_artifacts(str(art_dir))
+    shutil.rmtree(str(art_dir))
+    mlflow.log_metrics(report, step=initial_epoch)
 
 
 def train(run_name: str = None, initial_epoch: int = 0):
@@ -191,7 +367,8 @@ def mlflow_train():
     # Big data machine learning in the cloud
     status = RunStatus.FAILED
     try:
-        train(run_name=run_id, initial_epoch=initial_epoch)
+        tfunc = train if C["train_type"] == "deep" else train_ilp
+        tfunc(run_name=run_id, initial_epoch=initial_epoch)
         status = RunStatus.FINISHED
     except KeyboardInterrupt:
         logger.warning("Killing training on keyboard interrupt.")
