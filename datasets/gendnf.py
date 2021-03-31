@@ -443,23 +443,19 @@ def load_data() -> Tuple[  # pylint: disable=too-many-locals
     # ---------------------------
     # Generate train, validation and test splits
     rng = np.random.default_rng(seed=C["gendnf_rng_seed"])
-    data_size = dnpz["nullary"].shape[0]  # D
-    idxs = np.arange(data_size)  # (D,)
-    rng.shuffle(idxs)  # (D,)
-    train_size, val_size, test_size = (
-        C["gendnf_train_size"],
-        C["gendnf_validation_size"],
-        C["gendnf_test_size"],
-    )
-    required_size = train_size + val_size + test_size
-    assert (
-        required_size <= data_size
-    ), f"Need {required_size} examples but have {data_size}."
-    dsetidxs = {
-        "train": idxs[:train_size],
-        "validation": idxs[train_size : train_size + val_size],
-        "test": idxs[train_size + val_size : required_size],
-    }
+    pos_idxs = np.flatnonzero(dnpz["target"] == 1)
+    neg_idxs = np.flatnonzero(dnpz["target"] != 1)
+    dsetidxs: Dict[str, np.ndarray] = dict()
+    # We are creating balanced sets
+    for key in ("train", "validation", "test"):
+        dsize = C["gendnf_" + key + "_size"] // 2
+        dpos = rng.choice(pos_idxs, size=dsize, replace=False)
+        dneg = rng.choice(neg_idxs, size=dsize, replace=False)
+        pos_idxs = np.setdiff1d(pos_idxs, dpos, assume_unique=True)
+        neg_idxs = np.setdiff1d(neg_idxs, dneg, assume_unique=True)
+        didxs = np.concatenate((dpos, dneg))
+        rng.shuffle(didxs)
+        dsetidxs[key] = didxs
     # ---------------------------
     # Curate the tf.data.Dataset
     dsets: Dict[str, tf.data.Dataset] = dict()
