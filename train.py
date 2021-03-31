@@ -191,10 +191,11 @@ def train_ilp(run_name: str = None, initial_epoch: int = 0):
     ]
     fastlas_cmd = ["FastLAS", str(train_file)]
     # Run command with a timeout of 1 hour
-    logger.info("Running symbolic learner.")
+    timeout = 3600  # in seconds
+    logger.info("Running symbolic learner with timeout %i.", timeout)
     try:
         res = subprocess.run(
-            ilasp_cmd, capture_output=True, check=True, text=True, timeout=3600
+            ilasp_cmd, capture_output=True, check=True, text=True, timeout=timeout
         )
         # res.stdout looks like this for ILASP:
         # t :- not nullary(0); unary(V1,0); obj(V1).
@@ -215,8 +216,9 @@ def train_ilp(run_name: str = None, initial_epoch: int = 0):
             fout.write(res.stdout)
     except subprocess.TimeoutExpired:
         # We ran out of time
+        logger.warning("Symbolic learner timed out.")
         learnt_rules: List[str] = list()  # [r1, r2] in string form
-        total_time = 3600.0
+        total_time = float(timeout)
     else:
         res_lines = [l for l in res.stdout.split("\n") if l]
         comment_index = res_lines.index(
@@ -342,7 +344,10 @@ def mlflow_train():
     )
     if not past_runs.empty:
         run_id = past_runs["run_id"][0]
-        initial_epoch = int(past_runs["metrics.epoch"][0]) + 1
+        try:
+            initial_epoch = int(past_runs["metrics.epoch"][0]) + 1
+        except KeyError:
+            initial_epoch = 0
         run_status = past_runs["status"][0]
         assert not RunStatus.is_terminated(
             RunStatus.from_string(run_status)
