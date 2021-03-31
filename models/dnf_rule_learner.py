@@ -80,7 +80,7 @@ def build_model(  # pylint: disable=too-many-locals
     model = tf.keras.Model(
         inputs=dnf_inputs["input_layers"],
         outputs=outputs,
-        name="relsgame_model",
+        name="dnf_rule_learner",
     )
     # ---------------------------
     # Setup temperature scheduler callback
