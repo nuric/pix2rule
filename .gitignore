@@ -6,6 +6,7 @@ mlruns
 artifacts
 data
 dump*
+*.lp
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
