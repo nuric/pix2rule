@@ -145,12 +145,12 @@ class ParamScheduler(tf.keras.callbacks.Callback):
         self,
         layer_params: List[Tuple[str, str]],
         scheduler: tf.keras.optimizers.schedules.LearningRateSchedule,
-        min_value: float = None,
+        min_max_values: Tuple[float, float] = None,
     ):
         super().__init__()
         self.layer_params = layer_params
         self.scheduler = scheduler
-        self.min_value = min_value
+        self.min_max_values = min_max_values
 
     def get_parameter(self, layer_name: str, param_name: str) -> tf.Variable:
         """Return a reference to the scheduled parameter."""
@@ -165,8 +165,9 @@ class ParamScheduler(tf.keras.callbacks.Callback):
         for layer_name, param_name in self.layer_params:
             param = self.get_parameter(layer_name, param_name)
             new_value: tf.Tensor = self.scheduler(epoch)
-            if self.min_value is None or new_value >= self.min_value:
-                param.assign(new_value, read_value=False)
+            if self.min_max_values is not None:
+                new_value = tf.clip_by_value(new_value, *self.min_max_values)
+            param.assign(new_value, read_value=False)
 
     def on_epoch_end(self, epoch: int, logs: Dict[str, float] = None):
         """Append latest param value to logs."""

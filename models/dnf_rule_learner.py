@@ -90,14 +90,14 @@ def build_model(  # pylint: disable=too-many-locals
         #     scheduler=utils.schedules.DelayedExponentialDecay(
         #         1.0, decay_steps=1, decay_rate=0.8, delay=100
         #     ),
-        #     min_value=0.01,
+        #     min_max_values=(0.01, 1.0),
         # ),
         utils.callbacks.ParamScheduler(
             layer_params=[("dnf_layer", "success_threshold")],
             scheduler=utils.schedules.DelayedExponentialDecay(
                 0.05, decay_steps=1, decay_rate=1.07, delay=40
             ),
-            min_value=0.01,
+            min_max_values=(0.0, 6.0),
         ),
     ]
     # ---
