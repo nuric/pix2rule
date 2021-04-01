@@ -570,5 +570,4 @@ class WeightedDNF(BaseDNF):  # pylint: disable=too-many-instance-attributes
         # {'nullary': (B, R0), 'unary': (B, N, R1), 'binary': (B, N, N-1, R2)}
         # ---------------------------
         rules["or_kernel"] = self.or_kernel  # for logging and analysis
-        self.add_metric(self.success_threshold, "st")
         return rules
