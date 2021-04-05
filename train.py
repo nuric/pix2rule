@@ -58,12 +58,6 @@ add_argument(
     help="Maximum number of batch update steps.",
 )
 add_argument(
-    "--converged_loss",
-    default=0.01,
-    type=float,
-    help="Loss below which convergence is achieved.",
-)
-add_argument(
     "--eval_every", default=100, type=int, help="Evaluate model every N steps."
 )
 add_argument("--debug", action="store_true", help="Enable debug mode.")
@@ -293,12 +287,13 @@ def train(run_name: str = None, initial_epoch: int = 0):
         tf.keras.callbacks.ModelCheckpoint(
             str(saved_model_dir), monitor="validation_loss"
         ),
-        # utils.callbacks.EarlyStopAtConvergence(C["converged_loss"]),
         utils.callbacks.TerminateOnNaN(),
         utils.callbacks.Evaluator(dsets),
+        utils.callbacks.EarlyStopAtConvergence(delay=50),
         # tf.keras.callbacks.EarlyStopping(
         #     monitor="train_loss", min_delta=0.01, patience=10, verbose=1
         # ),
+        utils.callbacks.DNFPruner(dsets, art_dir),
         utils.callbacks.ArtifactSaver(dsets, art_dir),
     ]
     # Merge in model callbacks if any

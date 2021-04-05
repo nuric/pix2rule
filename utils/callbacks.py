@@ -1,5 +1,6 @@
 """Custom training utility callbacks."""
-from typing import List, Dict, Callable, Tuple
+from typing import List, Dict, Callable, Tuple, Any
+import json
 import shutil
 from pathlib import Path
 import time
@@ -7,9 +8,9 @@ import time
 import numpy as np
 import tensorflow as tf
 import mlflow
-import mlflow.keras
 
 from reportlib import create_report
+from components.dnf_layer import WeightedDNF
 from . import exceptions
 
 
@@ -110,18 +111,20 @@ class InvariantSelector(
 class EarlyStopAtConvergence(tf.keras.callbacks.Callback):
     """Early stop the training if the loss has reached a lower bound."""
 
-    def __init__(self, converge_value: float = 0.01):
+    def __init__(self, converge_value: float = 1.00, delay: int = 0):
         super().__init__()
         self.converge_value = converge_value
         self.has_converged = False
+        self.delay = delay
 
     def on_epoch_end(self, epoch: int, logs: Dict[str, float] = None):
         """Check for convergence."""
         logs = logs or dict()
-        if logs["loss"] < self.converge_value:
+        if epoch > self.delay and logs["validation_acc"] >= self.converge_value:
             self.model.stop_training = True
+            self.has_converged = True
             print(
-                f"Model has converged to desired loss {logs['loss']} < {self.converge_value}."
+                f"Converged to desired acc {logs['validation_acc']} >= {self.converge_value}."
             )
             mlflow.set_tag("result", "converged")
 
@@ -259,8 +262,147 @@ class ArtifactSaver(tf.keras.callbacks.Callback):
         # )
         # ---------------------------
         # Clean up
+        print("Cleaning up", art_dir)
         shutil.rmtree(str(art_dir))
         try:
             art_dir.parent.rmdir()  # Delete only if empty
         except OSError:
             pass  # we will keep the directory
+
+
+class DNFPruner(tf.keras.callbacks.Callback):
+    """Prunes DNF layer in a given model after training."""
+
+    epsilon = 0.1  # amount of change acceptable for pruning
+
+    def __init__(
+        self,
+        datasets: Dict[str, tf.data.Dataset],
+        artifact_dir: Path,
+    ):
+        super().__init__()
+        self.datasets = datasets
+        self.artifact_dir = artifact_dir
+
+    def prune_weight(self, weight: tf.Variable) -> int:
+        """Prune the given weight."""
+        # weight (...)
+        # ---------------------------
+        curr_weight = weight.read_value()
+        weight_size = int(tf.size(weight))
+        prune_count = 0  # Number of entries we managed to prune
+        # ---------------------------
+        # Get the validation dataset
+        vdset = next(v for k, v in self.datasets.items() if k.startswith("validation"))
+        # ---------------------------
+        curr_log: Dict[str, float] = self.model.evaluate(
+            vdset, verbose=0, return_dict=True
+        )
+        # {'acc': 0.5, 'loss': 0...}
+        # ---------------------------
+        # We will perform pruning by iterating through every entry
+        # and setting to 0
+        for i in range(weight_size):
+            # ---------------------------
+            # Construct a mask
+            mask = np.ones(weight_size, dtype=np.float32)  # (...)
+            mask[i] = 0.0
+            mask = mask.reshape(curr_weight.shape)  # (...)
+            # ---------------------------
+            # Assign the masked weight and evaluate again
+            weight.assign(curr_weight * mask)
+            test_log: Dict[str, float] = self.model.evaluate(
+                vdset, verbose=0, return_dict=True
+            )
+            # {'acc': 0.5, 'loss': 0...}
+            # ---------------------------
+            # Did we perform better or within epsilon limit
+            if test_log["acc"] - curr_log["acc"] > -self.epsilon:
+                # We have an acceptable new kernel
+                curr_weight *= mask
+                prune_count += 1
+        # ---------------------------
+        return prune_count
+
+    def threshold_weight(
+        self, weight: tf.Variable, threshold: float = 0.1, constant_value: float = 1.0
+    ):
+        """Threshold given weight by setting it to the given constant value."""
+        # weight (...)
+        # We will set positive entries to constant_value and
+        # negative values to -constant value
+        pos_mask = tf.cast(weight > threshold, tf.float32)
+        neg_mask = tf.cast(weight < -threshold, tf.float32)
+        new_weight = pos_mask * constant_value - neg_mask * constant_value
+        # ---------------------------
+        # Assign the new weight
+        weight.assign(new_weight)
+
+    def eval_datasets(self, prefix: str = None) -> Dict[str, float]:
+        """Evaluate the current model on all given datasets."""
+        logs: Dict[str, float] = dict()
+        prefix = prefix or ""
+        # ---------------------------
+        for dname, dataset in self.datasets.items():
+            if dname.startswith("train"):
+                continue
+            test_log: Dict[str, float] = self.model.evaluate(
+                dataset, verbose=0, return_dict=True
+            )
+            for metric_name, metric_value in test_log.items():
+                logs[dname + prefix + metric_name] = metric_value
+        # ---------------------------
+        return logs
+
+    def on_train_end(self, logs: Dict[str, float] = None):
+        """Prune the DNF layers."""
+        report: Dict[str, Any] = dict()
+        # ---------------------------
+        # Get the layer to prune
+        dnf_layer = self.model.get_layer("dnf_layer")
+        assert isinstance(
+            dnf_layer, WeightedDNF
+        ), "Can only prune weighted dnf layer for now."
+        # ---------------------------
+        # Curate the pre-pruned evaluation
+        print("Evaluating model pre-pruning.")
+        report.update(self.eval_datasets(prefix="_preprune_"))
+        # ---------------------------
+        # Perform pruning
+        print("Pruning model weights.")
+        orig_and_kernel = dnf_layer.and_kernel.read_value()
+        orig_or_kernel = dnf_layer.or_kernel.read_value()
+        report["orig_and_kernel"] = str(orig_and_kernel)
+        report["orig_or_kernel"] = str(orig_or_kernel)
+        # And kernel
+        prune_count = self.prune_weight(dnf_layer.and_kernel)
+        print("Pruned AND weights:", prune_count)
+        # Or kernel
+        prune_count += self.prune_weight(dnf_layer.or_kernel)
+        print("Pruned total weights:", prune_count)
+        # ---------------------------
+        # Perform post pruning evaluation
+        print("Evaluating post-pruning.")
+        report.update(self.eval_datasets(prefix="_pruned_"))
+        report["prune_count"] = prune_count
+        report["pruned_and_kernel"] = str(dnf_layer.and_kernel.read_value())
+        report["pruned_or_kernel"] = str(dnf_layer.or_kernel.read_value())
+        # ---------------------------
+        # Threshold weights for final evaluation
+        print("Evaluating with thresholded weights.")
+        self.threshold_weight(dnf_layer.and_kernel)
+        self.threshold_weight(dnf_layer.or_kernel)
+        report.update(self.eval_datasets(prefix="_threshold_"))
+        report["threshold_and_kernel"] = str(dnf_layer.and_kernel.read_value())
+        report["threshold_or_kernel"] = str(dnf_layer.or_kernel.read_value())
+        # ---------------------------
+        # Restore original weights
+        dnf_layer.and_kernel.assign(orig_and_kernel)
+        dnf_layer.or_kernel.assign(orig_or_kernel)
+        # ---------------------------
+        # Save the pruning information
+        pruningf = self.artifact_dir / "pruning_info.json"
+        print("Saving pruning information to", pruningf)
+        with pruningf.open("w") as fout:
+            json.dump(report, fout, indent=4)
+        # ---------------------------
