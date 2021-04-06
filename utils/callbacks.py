@@ -273,7 +273,7 @@ class ArtifactSaver(tf.keras.callbacks.Callback):
 class DNFPruner(tf.keras.callbacks.Callback):
     """Prunes DNF layer in a given model after training."""
 
-    epsilon = 0.1  # amount of change acceptable for pruning
+    epsilon = 0.01  # amount of change acceptable for pruning
 
     def __init__(
         self,
@@ -317,11 +317,14 @@ class DNFPruner(tf.keras.callbacks.Callback):
             # {'acc': 0.5, 'loss': 0...}
             # ---------------------------
             # Did we perform better or within epsilon limit
-            if test_log["acc"] - curr_log["acc"] > -self.epsilon:
+            if curr_log["acc"] - test_log["acc"] < self.epsilon:
                 # We have an acceptable new kernel
                 curr_weight *= mask
+                curr_log = test_log
                 prune_count += 1
         # ---------------------------
+        # Restore to the best pruned weight
+        weight.assign(curr_weight)
         return prune_count
 
     def threshold_weight(
@@ -390,8 +393,12 @@ class DNFPruner(tf.keras.callbacks.Callback):
         # ---------------------------
         # Threshold weights for final evaluation
         print("Evaluating with thresholded weights.")
-        self.threshold_weight(dnf_layer.and_kernel)
-        self.threshold_weight(dnf_layer.or_kernel)
+        self.threshold_weight(
+            dnf_layer.and_kernel, constant_value=dnf_layer.success_threshold
+        )
+        self.threshold_weight(
+            dnf_layer.or_kernel, constant_value=dnf_layer.success_threshold
+        )
         report.update(self.eval_datasets(prefix="_threshold_"))
         report["threshold_and_kernel"] = str(dnf_layer.and_kernel.read_value())
         report["threshold_or_kernel"] = str(dnf_layer.or_kernel.read_value())
