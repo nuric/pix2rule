@@ -439,6 +439,7 @@ def load_data() -> Tuple[  # pylint: disable=too-many-locals
     fpath = generate_data()
     # ---------------------------
     # Load the dataset file
+    logger.info("Loading data file: %s", str(fpath))
     dnpz = np.load(fpath)  # {'nullary': ..., ...}
     # ---------------------------
     # Generate train, validation and test splits
@@ -487,13 +488,13 @@ def load_data() -> Tuple[  # pylint: disable=too-many-locals
     # Generate description
     if C["gendnf_return_numpy"]:
         inputs = {
-            k: {"shape": tuple(v.shape), "dtype": v.dtype}
+            k: {"shape": tuple(v.shape), "dtype": v.dtype.name}
             for k, v in dsets["train"][0].items()
         }
         outputs = {
             "label": {
                 "shape": tuple(dsets["train"][1]["label"].shape),
-                "dtype": dsets["train"][1]["label"].dtype,
+                "dtype": dsets["train"][1]["label"].dtype.name,
                 "num_categories": 1,
                 "type": "multilabel",
                 "target_rules": [0],  # 1 predicate to learn with arity 0
@@ -501,14 +502,14 @@ def load_data() -> Tuple[  # pylint: disable=too-many-locals
         }
     else:
         inputs = {
-            k: {"shape": tuple(v.shape), "dtype": v.dtype}
+            k: {"shape": tuple(v.shape), "dtype": v.dtype.name}
             for k, v in dsets["train"].element_spec[0].items()
         }
         output_spec = dsets["train"].element_spec[1]
         outputs = {
             "label": {
                 "shape": tuple(output_spec["label"].shape),
-                "dtype": output_spec["label"].dtype,
+                "dtype": output_spec["label"].dtype.name,
                 "num_categories": 1,
                 "type": "multilabel",
                 "target_rules": [0],  # 1 predicate to learn with arity 0
@@ -522,6 +523,9 @@ def load_data() -> Tuple[  # pylint: disable=too-many-locals
         "metadata": {
             "num_conjuncts": C["gendnf_num_conjuncts"],
             "num_variables": C["gendnf_num_variables"],
+            "and_kernel": json.dumps(dnpz["and_kernel"].tolist()),
+            "or_kernel": json.dumps(dnpz["or_kernel"].tolist()),
+            "rule_str": list(dnpz["rule_str"]),
         },
     }
     # ---------------------------

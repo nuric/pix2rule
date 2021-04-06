@@ -9,6 +9,7 @@ import signal
 import socket
 import subprocess
 import shutil
+import json
 
 import numpy as np
 import absl.logging
@@ -263,12 +264,19 @@ def train(run_name: str = None, initial_epoch: int = 0):
     model_num_params = model.count_params()
     logger.info("Model has %i many parameters.", model.count_params())
     # ---------------------------
-    # Setup artifacts and check if we are resuming
+    # Setup artifacts
     run_name = run_name or utils.hashing.dict_hash(C)
     art_dir = Path(C["data_dir"]) / "active_runs" / C["experiment_name"] / run_name
     art_dir.mkdir(parents=True, exist_ok=True)
     logger.info("Local artifact dir is %s", str(art_dir))
-    # ---
+    # ---------------------------
+    # Save task description obtained for this run
+    task_desc_file = art_dir / "task_description.json"
+    logger.info("Saving task description to %s", str(task_desc_file))
+    with task_desc_file.open("w") as fout:
+        json.dump(task_description, fout, indent=4)
+    # ---------------------------
+    # Are we resuming?
     saved_model_dir = art_dir / "models/latest_model"
     if saved_model_dir.exists():
         assert (

@@ -13,7 +13,7 @@ def create_input_layers(
         input_layer = tf.keras.layers.Input(
             shape=input_desc["shape"][1:],
             name=input_name,
-            dtype=input_desc["dtype"].name,
+            dtype=input_desc["dtype"],
         )
         processed["input_layers"].append(input_layer)
         processed["processed"][input_name] = processors[input_name](
