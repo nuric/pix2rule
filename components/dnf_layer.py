@@ -527,7 +527,7 @@ class WeightedDNF(BaseDNF):  # pylint: disable=too-many-instance-attributes
             in_tensor[:, :, None, None] * self.and_kernel
         )  # (B, K, R, H, IN)
         and_threshold = self.success_threshold  # this is pre-tanh or arctanh(alpha)
-        and_wsum = tf.reduce_sum(tf.square(self.and_kernel), -1)  # (R, H)
+        and_wsum = tf.reduce_sum(tf.math.abs(self.and_kernel), -1)  # (R, H)
         and_bias = and_threshold - and_wsum * tf.nn.tanh(and_threshold)  # (R, H)
         conjuncts = tf.reduce_sum(conjuncts_eval, -1) + and_bias  # (B, K, R, H)
         conjuncts = tf.nn.tanh(conjuncts)  # (B, K, R, H)
@@ -561,7 +561,7 @@ class WeightedDNF(BaseDNF):  # pylint: disable=too-many-instance-attributes
         # threshold of success, maximum we expect to output
         or_threshold = self.success_threshold
         for k, kernel in kernels.items():
-            kernel_sum = tf.reduce_sum(tf.square(kernel), -1)  # (RX,)
+            kernel_sum = tf.reduce_sum(tf.math.abs(kernel), -1)  # (RX,)
             disj_bias = kernel_sum * tf.nn.tanh(or_threshold) - or_threshold  # (RX,)
             # -a*wsum + b = -k
             # b = wsum*a - k
