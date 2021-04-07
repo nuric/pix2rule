@@ -88,7 +88,67 @@ relsgame_models: List[Dict[str, Any]] = [
 relsgame_exps = hp.chain(
     hp.generate(relsgame_exp), *[hp.generate(m) for m in relsgame_models]
 )
-all_experiments.extend(relsgame_exps)
+# all_experiments.extend(relsgame_exps)
+# ---------------------------
+gendnf_exp = {
+    "tracking_uri": "http://muli.doc.ic.ac.uk:8888",
+    "experiment_name": "gendnf-full-" + current_dt,
+    "max_steps": 30000,
+    "eval_every": 200,  # divide max_steps by this to get epochs in keras
+    "learning_rate": 0.01,
+    "dataset_name": "gendnf",
+    "gendnf_target_arity": 0,  # we are learning a single propositional rule
+    "gendnf_gen_size": 10000,
+    "gendnf_train_size": 1000,
+    "gendnf_validation_size": 1000,
+    "gendnf_test_size": 1000,
+    "gendnf_batch_size": 64,
+    "gendnf_noise_stddev": 0.0,
+    # EuroMillions winning numbers 26 March 2021, draw 1410
+    "gendnf_rng_seed": [10, 12, 37, 49, 50, 3, 8],
+    "run_count": list(range(5)),
+}
+gendnf_datasets = [
+    {
+        "gendnf_difficulty": "easy",
+        "gendnf_num_objects": 4,
+        "gendnf_num_nullary": 1,
+        "gendnf_num_unary": 2,
+        "gendnf_num_binary": 2,
+        "gendnf_num_variables": 2,
+        "gendnf_num_conjuncts": 4,
+    },
+    {
+        "gendnf_difficulty": "medium",
+        "gendnf_num_objects": 4,
+        "gendnf_num_nullary": 4,
+        "gendnf_num_unary": 5,
+        "gendnf_num_binary": 6,
+        "gendnf_num_variables": 3,
+        "gendnf_num_conjuncts": 4,
+    },
+    {
+        "gendnf_difficulty": "hard",
+        "gendnf_num_objects": 4,
+        "gendnf_num_nullary": 6,
+        "gendnf_num_unary": 7,
+        "gendnf_num_binary": 8,
+        "gendnf_num_variables": 3,
+        "gendnf_num_conjuncts": 4,
+    },
+]
+gendnf_models: List[Dict[str, Any]] = [
+    {
+        "train_type": "deep",
+        "model_name": "dnf_rule_learner",
+        "dnf_rule_learner_inference_layer_name": "WeightedDNF",
+    },
+    # {
+    #     "train_type": "ilasp",
+    # },
+]
+gendnf_exps = hp.chain(hp.generate(gendnf_exp), gendnf_datasets, gendnf_models)
+all_experiments.extend(gendnf_exps)
 # ---------------------------
 # Ask user if they are on the right path (?)
 print("---------------------------")
@@ -122,7 +182,7 @@ pprint.pprint(data_paths)
 print(f"Total of {len(data_paths)}.")
 # ---------------------------
 # Create mlflow experiment
-mlflow.set_tracking_uri(str(data_dir / "mlruns"))
+mlflow.set_tracking_uri("http://localhost:8888")
 for exp_name in set(exp["experiment_name"] for exp in all_experiments):
     exp_id = mlflow.create_experiment(exp_name)
     print("Created mlflow experiment:", exp_name, exp_id)

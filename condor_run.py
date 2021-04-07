@@ -28,7 +28,7 @@ queue from (
 
 # ---------------------------
 # Load unfinished experiments
-mlflow.set_tracking_uri("data/mlruns")
+mlflow.set_tracking_uri("http://localhost:8888")
 with open("data/experiments.json") as experiments_file:
     experiments = json.load(experiments_file)
 experiment_names = set(exp["experiment_name"] for exp in experiments.values())
