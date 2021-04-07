@@ -52,7 +52,7 @@ def build_model(  # pylint: disable=too-many-locals
     dnf_layer = utils.factory.get_and_init(
         components.dnf_layer,
         C,
-        "dnf_inference_",
+        "dnf_rule_learner_inference_",
         arities=target_rules,
         num_conjuncts=task_description["metadata"]["num_conjuncts"],
         num_total_variables=task_description["metadata"]["num_variables"],
@@ -70,9 +70,8 @@ def build_model(  # pylint: disable=too-many-locals
         "label": [tf.keras.metrics.BinaryAccuracy(name="acc")]
     }
     outputs: Dict[str, tf.Tensor] = {"label": predictions}
-    lname = C["dnf_inference_layer_name"]
     # ---
-    if lname == "DNF":
+    if C["dnf_rule_learner_inference_layer_name"] == "DNF":
         loss["label"] = tf.keras.losses.BinaryCrossentropy(from_logits=False)
     else:
         loss["label"] = tf.keras.losses.BinaryCrossentropy(from_logits=True)
@@ -95,7 +94,7 @@ def build_model(  # pylint: disable=too-many-locals
         utils.callbacks.ParamScheduler(
             layer_params=[("dnf_layer", "success_threshold")],
             scheduler=utils.schedules.DelayedExponentialDecay(
-                0.05, decay_steps=1, decay_rate=1.1, delay=10
+                0.10, decay_steps=2, decay_rate=1.1, delay=10
             ),
             min_max_values=(0.0, 6.0),
         ),
