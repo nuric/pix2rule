@@ -304,6 +304,10 @@ class DNFPruner(tf.keras.callbacks.Callback):
         # and setting to 0
         for i in range(weight_size):
             # ---------------------------
+            # Skip already 0 weights
+            if tf.reshape(curr_weight, (-1,))[i] == 0.0:
+                continue
+            # ---------------------------
             # Construct a mask
             mask = np.ones(weight_size, dtype=np.float32)  # (...)
             mask[i] = 0.0
@@ -366,6 +370,16 @@ class DNFPruner(tf.keras.callbacks.Callback):
         assert isinstance(
             dnf_layer, WeightedDNF
         ), "Can only prune weighted dnf layer for now."
+
+        def save_kernels(prefix: str):
+            """Save dnf layers state to report."""
+            report[prefix + "and_kernel"] = (
+                dnf_layer.and_kernel.read_value().numpy().tolist()
+            )
+            report[prefix + "or_kernel"] = (
+                dnf_layer.or_kernel.read_value().numpy().tolist()
+            )
+
         # ---------------------------
         # Curate the pre-pruned evaluation
         print("Evaluating model pre-pruning.")
@@ -375,8 +389,7 @@ class DNFPruner(tf.keras.callbacks.Callback):
         print("Pruning model weights.")
         orig_and_kernel = dnf_layer.and_kernel.read_value()
         orig_or_kernel = dnf_layer.or_kernel.read_value()
-        report["orig_and_kernel"] = str(orig_and_kernel)
-        report["orig_or_kernel"] = str(orig_or_kernel)
+        save_kernels("orig_")
         # And kernel
         prune_count = self.prune_weight(dnf_layer.and_kernel)
         print("Pruned AND weights:", prune_count)
@@ -388,8 +401,7 @@ class DNFPruner(tf.keras.callbacks.Callback):
         print("Evaluating post-pruning.")
         report.update(self.eval_datasets(prefix="_pruned_"))
         report["prune_count"] = prune_count
-        report["pruned_and_kernel"] = str(dnf_layer.and_kernel.read_value())
-        report["pruned_or_kernel"] = str(dnf_layer.or_kernel.read_value())
+        save_kernels("pruned_")
         # ---------------------------
         # Threshold weights for final evaluation
         print("Evaluating with thresholded weights.")
@@ -400,8 +412,16 @@ class DNFPruner(tf.keras.callbacks.Callback):
             dnf_layer.or_kernel, constant_value=dnf_layer.success_threshold
         )
         report.update(self.eval_datasets(prefix="_threshold_"))
-        report["threshold_and_kernel"] = str(dnf_layer.and_kernel.read_value())
-        report["threshold_or_kernel"] = str(dnf_layer.or_kernel.read_value())
+        save_kernels("threshold_")
+        # ---------------------------
+        # Prune thresholded weights
+        prune_count = self.prune_weight(dnf_layer.and_kernel)
+        print("Pruned thresholded AND weights", prune_count)
+        prune_count += self.prune_weight(dnf_layer.or_kernel)
+        print("Pruned thresholded total weights", prune_count)
+        report["threshold_prune_count"] = prune_count
+        report.update(self.eval_datasets(prefix="_thresholded_pruned_"))
+        save_kernels("threshold_prune_")
         # ---------------------------
         # Restore original weights
         dnf_layer.and_kernel.assign(orig_and_kernel)
