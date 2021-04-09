@@ -404,10 +404,11 @@ def generate_data() -> str:  # pylint: disable=too-many-locals
     flat_in = flatten_interpretation(nullary, unary, binary)  # (B', IN)
     _, unique_idxs = np.unique(flat_in, return_index=True, axis=0)  # (<B',)
     data = {k: v[unique_idxs] for k, v in data.items()}
-    logger.info("Managed to generate %i many unique examples", data["nullary"].shape[0])
+    dsize = data["nullary"].shape[0]  # <B'
+    logger.info("Managed to generate %i many unique examples", dsize)
     # ---------------------------
     logger.info("Sending random samples to clingo for sanity check.")
-    ridxs = rng.integers(data["nullary"].shape[0], size=1000)  # (B,)
+    ridxs = rng.permutation(dsize)[:1000]  # (B,)
     sample = {k: v[ridxs] for k, v in data.items()}
     rule_dict = {
         "and_kernel": and_kernel,
