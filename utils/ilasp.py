@@ -204,13 +204,12 @@ def get_search_space_size(task_description: Dict[str, Any]) -> int:
     # ---------------------------
     # Call ILASP to generate the search space
     logger.info("Asking ILASP for the search space.")
-    return 1
-    # # res = run_ilasp("ilasp_temp.lp", max_size, only_search_space=True)
-    # res_lines = [l for l in res.split("\n") if l]  # Remove empty lines
-    # assert res_lines[0] == "1 ~ t.", f"ILASP search space started with {res_lines[0]}."
-    # # ---------------------------
-    # print(res)
-    # return len(res_lines)
+    res = run_ilasp("ilasp_temp.lp", max_size, only_search_space=True)
+    res_lines = [l for l in res.split("\n") if l]  # Remove empty lines
+    assert res_lines[0] == "1 ~ t.", f"ILASP search space started with {res_lines[0]}."
+    # ---------------------------
+    print(res)
+    return len(res_lines)
 
 
 if __name__ == "__main__":
