@@ -1,13 +1,11 @@
 """Training script for pix2rule."""
-from typing import List, Dict
+from typing import Dict
 import logging
 import datetime
 from pathlib import Path
-import re
 import sys
 import signal
 import socket
-import subprocess
 import shutil
 import json
 
@@ -113,49 +111,19 @@ def train_ilp(run_name: str = None, initial_epoch: int = 0):
     # Run command with a timeout of 1 hour
     timeout = 3600  # in seconds
     logger.info("Running symbolic learner with timeout %i.", timeout)
-    try:
-        res = utils.ilasp.run_ilasp(str(train_file), max_size, timeout=timeout)
-        # res looks like this for ILASP:
-        # t :- not nullary(0); unary(V1,0); obj(V1).
-        # t :- not binary(V1,V2,0); not binary(V2,V1,0); ...
-
-        # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        # %% Pre-processing                          : 0.002s
-        # %% Hypothesis Space Generation             : 0.053s
-        # %% Conflict analysis                       : 1.789s
-        # %%   - Positive Examples                   : 1.789s
-        # %% Counterexample search                   : 0.197s
-        # %%   - CDOEs                               : 0s
-        # %%   - CDPIs                               : 0.196s
-        # %% Hypothesis Search                       : 0.167s
-        # %% Total                                   : 2.229s
-        # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        with (art_dir / "train_cmd_out.txt").open("w") as fout:
-            fout.write(res)
-    except subprocess.TimeoutExpired:
-        # We ran out of time
-        logger.warning("Symbolic learner timed out.")
-        learnt_rules: List[str] = list()  # [r1, r2] in string form
-        total_time = float(timeout)
-    else:
-        res_lines = [l for l in res.split("\n") if l]
-        comment_index = res_lines.index(
-            r"%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%"
-        )
-        learnt_rules = res_lines[:comment_index]  # [r1, r2] in string form
-        # ILASP returns rules with semi-colon in body, we adjust them back to commas
-        learnt_rules = [r.replace(";", ",") for r in learnt_rules]
-        total_time = float(re.findall(r"\d.\d+", res_lines[-2])[0])
-    logger.info("Learnt rules are %s", learnt_rules)
-    logger.info("Total runtime was %f seconds.", total_time)
+    run_dict = utils.ilasp.run_ilasp(str(train_file), max_size, timeout=timeout)
+    with (art_dir / "train_cmd_out.txt").open("w") as fout:
+        fout.write(run_dict["output"])
+    logger.info("Learnt rules are %s", run_dict["learnt_rules"])
+    logger.info("Total runtime was %f seconds.", run_dict["total_time"])
     # ---------------------------
     # Run the validation and test pipelines
     logger.info("Running validation.")
-    learnt_program = learnt_rules + ["neq(X, Y) :- obj(X), obj(Y), X != Y."]
+    learnt_program = run_dict["learnt_rules"] + ["neq(X, Y) :- obj(X), obj(Y), X != Y."]
     with (art_dir / "learnt_program.lp").open("w") as fout:
         fout.write("\n".join(learnt_program))
     # ---------------------------
-    report: Dict[str, float] = {"time": total_time}
+    report: Dict[str, float] = {"time": run_dict["total_time"]}
     for key in dsets.keys():
         res = utils.clingo.clingo_rule_check(dsets[key][0], learnt_program)
         acc = np.mean(res == dsets[key][1]["label"])

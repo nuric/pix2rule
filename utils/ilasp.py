@@ -3,6 +3,7 @@ from typing import Dict, Any, List, Tuple
 import logging
 import subprocess
 import pprint
+import re
 
 import tensorflow as tf
 
@@ -152,8 +153,12 @@ def generate_pos_examples(dset: tf.data.Dataset) -> List[str]:
 
 
 def run_ilasp(
-    fpath: str, max_size: int, only_search_space: bool = False, timeout: int = 3600
-) -> str:
+    fpath: str,
+    max_size: int,
+    only_search_space: bool = False,
+    timeout: int = 3600,
+    parse_output: bool = True,
+) -> Dict[str, Any]:
     """Run ILASP on the given file, optionally just generate the search space."""
     # ---------------------------
     # Construct the ILASP call
@@ -171,27 +176,49 @@ def run_ilasp(
     if only_search_space:
         ilasp_cmd.append("-s")
     # ---------------------------
+    report: Dict[str, Any] = {
+        "total_time": timeout,
+        "learnt_rules": list(),
+        "output": "",
+    }
     # Call ILASP
-    res = subprocess.run(
-        ilasp_cmd, capture_output=True, check=True, text=True, timeout=timeout
-    )
-    # res.stdout looks like this for ILASP:
-    # t :- not nullary(0); unary(V1,0); obj(V1).
-    # t :- not binary(V1,V2,0); not binary(V2,V1,0); ...
+    try:
+        res = subprocess.run(
+            ilasp_cmd, capture_output=True, check=True, text=True, timeout=timeout
+        )
+        # res.stdout looks like this for ILASP:
+        # t :- not nullary(0); unary(V1,0); obj(V1).
+        # t :- not binary(V1,V2,0); not binary(V2,V1,0); ...
 
-    # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    # %% Pre-processing                          : 0.002s
-    # %% Hypothesis Space Generation             : 0.053s
-    # %% Conflict analysis                       : 1.789s
-    # %%   - Positive Examples                   : 1.789s
-    # %% Counterexample search                   : 0.197s
-    # %%   - CDOEs                               : 0s
-    # %%   - CDPIs                               : 0.196s
-    # %% Hypothesis Search                       : 0.167s
-    # %% Total                                   : 2.229s
-    # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        # %% Pre-processing                          : 0.002s
+        # %% Hypothesis Space Generation             : 0.053s
+        # %% Conflict analysis                       : 1.789s
+        # %%   - Positive Examples                   : 1.789s
+        # %% Counterexample search                   : 0.197s
+        # %%   - CDOEs                               : 0s
+        # %%   - CDPIs                               : 0.196s
+        # %% Hypothesis Search                       : 0.167s
+        # %% Total                                   : 2.229s
+        # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        report["output"] = res.stdout
+    except subprocess.TimeoutExpired:
+        # We ran out of time
+        logger.warning("Symbolic learner timed out.")
+    else:
+        if parse_output:
+            res_lines = [l for l in res.stdout.split("\n") if l]
+            comment_index = res_lines.index(
+                r"%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%"
+            )
+            learnt_rules = res_lines[:comment_index]  # [r1, r2] in string form
+            # ILASP returns rules with semi-colon in body, we adjust them back to commas
+            learnt_rules = [r.replace(";", ",") for r in learnt_rules]
+            total_time = float(re.findall(r"\d.\d+", res_lines[-2])[0])
+            report["learnt_rules"] = learnt_rules
+            report["total_time"] = total_time
     # ---------------------------
-    return res.stdout
+    return report
 
 
 def get_search_space_size(task_description: Dict[str, Any]) -> int:
@@ -204,8 +231,10 @@ def get_search_space_size(task_description: Dict[str, Any]) -> int:
     # ---------------------------
     # Call ILASP to generate the search space
     logger.info("Asking ILASP for the search space.")
-    res = run_ilasp("ilasp_temp.lp", max_size, only_search_space=True)
-    res_lines = [l for l in res.split("\n") if l]  # Remove empty lines
+    res = run_ilasp(
+        "ilasp_temp.lp", max_size, only_search_space=True, parse_output=False
+    )
+    res_lines = [l for l in res["output"].split("\n") if l]  # Remove empty lines
     assert res_lines[0] == "1 ~ t.", f"ILASP search space started with {res_lines[0]}."
     # ---------------------------
     print(res)
