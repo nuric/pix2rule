@@ -26,6 +26,7 @@ import utils.callbacks
 import utils.exceptions
 import utils.hashing
 import utils.clingo
+import utils.ilasp
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -89,110 +90,32 @@ def train_ilp(run_name: str = None, initial_epoch: int = 0):
     art_dir.mkdir(parents=True, exist_ok=True)
     logger.info("Local artifact dir is %s", str(art_dir))
     # ---------------------------
-    # Generate training file
-    num_nullary = task_description["inputs"]["nullary"]["shape"][-1]  # num_nullary
-    num_unary = task_description["inputs"]["unary"]["shape"][-1]  # num_unary
-    num_binary = task_description["inputs"]["binary"]["shape"][-1]  # num_binary
-    num_objects = task_description["inputs"]["unary"]["shape"][1]  # O
-    num_variables = task_description["metadata"]["num_variables"]  # V
-    # ---
-    lines: List[str] = [
-        "#modeh(t).",  # Our target we are learning, t :- ...
-        f"#maxv({num_variables}).",  # Max number of variables.
-        "#modeb(neq(var(obj), var(obj))).",  # Uniqueness of variables assumption.
-        "neq(X, Y) :- obj(X), obj(Y), X != Y.",  # Definition of not equals.
-        f"obj(0..{num_objects-1}).",  # Definition of objects, 0..n is inclusive so we subtract 1
-        # These are bias constraints to adjust search space
-        '#bias(":- body(neq(X, Y)), X >= Y.").',  # remove neg redundencies
-        '#bias(":- body(naf(neq(X, Y))).").',  # We don't need not neg(..) in the rule
-        '#bias(":- used(X), used(Y), X!=Y, not diff(X,Y).").',  # Make sure variable use is unique
-        '#bias("diff(X,Y):- body(neq(X,Y)).").',
-        '#bias("diff(X,Y):- body(neq(Y,X)).").',
-        '#bias(":- body(neq(X, _)), not used(X).").',  # Make sure variable is used
-        '#bias(":- body(neq(_, X)), not used(X).").',  # Make sure variable is used
-        '#bias("used(X) :- body(unary(X, _)).").',  # We use a variable if it is in a unary
-        '#bias("used(X) :- body(naf(unary(X, _))).").',
-        '#bias("used(X) :- body(binary(X, _, _)).").',  # or a binary atom
-        '#bias("used(X) :- body(binary(_, X, _)).").',
-        '#bias("used(X) :- body(naf(binary(X, _, _))).").',
-        '#bias("used(X) :- body(naf(binary(_, X, _))).").',
-        '#bias(":- body(binary(X, X, _)).").',  # binary predicates are anti-reflexive
-        '#bias(":- body(naf(binary(X, X, _))).").',
-    ]
-    # ---
-    # Add nullary search space
-    lines.append(f"#modeb({num_nullary}, nullary(const(nullary_type))).")
-    # Add unary search space
-    unary_size = num_variables * num_unary
-    lines.append(f"#modeb({unary_size}, unary(var(obj), const(unary_type))).")
-    # Add binary search space
-    binary_size = num_variables * (num_variables - 1) * num_binary
-    lines.append(
-        f"#modeb({binary_size}, binary(var(obj), var(obj), const(binary_type)))."
-    )
-    # Add constants
-    for ctype, count in [
-        ("obj", num_objects),
-        ("nullary_type", num_nullary),
-        ("unary_type", num_unary),
-        ("binary_type", num_binary),
-    ]:
-        for i in range(count):
-            lines.append(f"#constant({ctype}, {i}).")
-    # Add max penalty for ILASP
-    total_size = num_nullary + unary_size + binary_size
-    if C["train_type"] == "ilasp":
-        lines.append(f"#max_penalty({total_size*2}).")
+    # Generate search space
+    # The following are lines of the LAS of file
+    las_lines, max_size = utils.ilasp.generate_search_space(
+        task_description
+    )  # Mode biases etc.
     # ---------------------------
     # Let's now generate and add examples
-    logger.info("dataset: %s", str(task_description))
-    examples = {**dsets["train"][0], **dsets["train"][1]}
-    # {'nullary': (B, P0), 'unary': (B, O, P1), 'binary': (B, O, O-1, P2), 'label': (B,)}
-    string_examples = utils.clingo.tensor_interpretations_to_strings(
-        examples
-    )  # list of lists
-    logger.info("Generating %i examples.", len(string_examples))
-    for i, (str_example, label) in enumerate(
-        zip(string_examples, dsets["train"][1]["label"])
-    ):
-        # ---------------------------
-        # Write the examples
-        # We only have positive examples in which we either want t to be entailed
-        # or not, and setup using inclusion and exclusions
-        if label == 1:
-            lines.append(f"#pos(eg{i}, {{t}}, {{}}, {{")
-        else:
-            lines.append(f"#pos(eg{i}, {{}}, {{t}}, {{")
-        lines.extend(str_example)
-        lines.append("}).")
+    example_lines = utils.ilasp.generate_pos_examples(
+        dsets["train"]
+    )  # #pos({...}) examples
     # ---------------------------
     # Save training file
+    all_lines = las_lines + example_lines
     train_file = art_dir / "train.lp"
     with train_file.open("w") as fout:
-        fout.writelines(f"{l}\n" for l in lines)
+        fout.writelines(f"{l}\n" for l in all_lines)
     with open("train_las.lp", "w") as fout:
-        fout.writelines(f"{l}\n" for l in lines)
+        fout.writelines(f"{l}\n" for l in all_lines)
     # ---------------------------
     # Run the training, assuming ILASP and FastLAS in $PATH
-    ilasp_cmd = [
-        "ILASP",
-        "--version=4",
-        "--no-constraints",
-        "--no-aggregates",
-        f"-ml={total_size * 2}",  # We increase the size to allow for X!=Y etc in the rule
-        f"--max-rule-length={total_size * 2}",
-        "--strict-types",
-        str(train_file),
-    ]
-    fastlas_cmd = ["FastLAS", str(train_file)]
     # Run command with a timeout of 1 hour
     timeout = 3600  # in seconds
     logger.info("Running symbolic learner with timeout %i.", timeout)
     try:
-        res = subprocess.run(
-            ilasp_cmd, capture_output=True, check=True, text=True, timeout=timeout
-        )
-        # res.stdout looks like this for ILASP:
+        res = utils.ilasp.run_ilasp(str(train_file), max_size, timeout=timeout)
+        # res looks like this for ILASP:
         # t :- not nullary(0); unary(V1,0); obj(V1).
         # t :- not binary(V1,V2,0); not binary(V2,V1,0); ...
 
@@ -208,18 +131,20 @@ def train_ilp(run_name: str = None, initial_epoch: int = 0):
         # %% Total                                   : 2.229s
         # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         with (art_dir / "train_cmd_out.txt").open("w") as fout:
-            fout.write(res.stdout)
+            fout.write(res)
     except subprocess.TimeoutExpired:
         # We ran out of time
         logger.warning("Symbolic learner timed out.")
         learnt_rules: List[str] = list()  # [r1, r2] in string form
         total_time = float(timeout)
     else:
-        res_lines = [l for l in res.stdout.split("\n") if l]
+        res_lines = [l for l in res.split("\n") if l]
         comment_index = res_lines.index(
             r"%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%"
         )
         learnt_rules = res_lines[:comment_index]  # [r1, r2] in string form
+        # ILASP returns rules with semi-colon in body, we adjust them back to commas
+        learnt_rules = [r.replace(";", ",") for r in learnt_rules]
         total_time = float(re.findall(r"\d.\d+", res_lines[-2])[0])
     logger.info("Learnt rules are %s", learnt_rules)
     logger.info("Total runtime was %f seconds.", total_time)
@@ -297,9 +222,9 @@ def train(run_name: str = None, initial_epoch: int = 0):
         ),
         utils.callbacks.TerminateOnNaN(),
         utils.callbacks.Evaluator(dsets),
-        utils.callbacks.EarlyStopAtConvergence(delay=50),
+        # utils.callbacks.EarlyStopAtConvergence(delay=50),
         # tf.keras.callbacks.EarlyStopping(
-        #     monitor="train_loss", min_delta=0.01, patience=10, verbose=1
+        #     monitor="validation_loss", min_delta=0.01, patience=10, verbose=1
         # ),
         utils.callbacks.DNFPruner(dsets, art_dir),
         utils.callbacks.ArtifactSaver(dsets, art_dir),
