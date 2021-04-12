@@ -3,27 +3,29 @@ from typing import Dict, List
 import re
 import itertools
 import subprocess
-import os
 
 import numpy as np
 import tqdm
 
 
-def run_clingo(logic_program: List[str], cleanup: bool = False) -> bool:
+def run_clingo(logic_program: List[str], fpath: str = None) -> bool:
     """Run clingo for satisfiability check for a given program."""
-    # Write the program file.
-    with open("clingo_temp.lp", "w") as fout:
-        fout.write("\n".join(logic_program))
+    # ---------------------------
+    str_program = "\n".join(logic_program)  # Full logic program file
+    # Optionally write the program file.
+    if fpath:
+        with open(fpath, "w") as fout:
+            fout.write(str_program)
     # ---------------------------
     # Ask clingo the result
     # Clingo for some reason returns exit code 10 on success, we won't have return check
     res = subprocess.run(
-        ["clingo", "clingo_temp.lp"], capture_output=True, check=False, text=True
+        ["clingo"],
+        input=str_program,
+        capture_output=True,
+        check=False,
+        text=True,
     )
-    # ---------------------------
-    # Clean up
-    if cleanup:
-        os.remove("clingo_temp.lp")
     # ---------------------------
     return "UNSATISFIABLE" not in res.stdout
 
