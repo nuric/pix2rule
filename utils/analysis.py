@@ -1,6 +1,7 @@
 """Utility functions for analysis."""
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Any
 import pprint
+import json
 
 import numpy as np
 import pandas as pd
@@ -81,3 +82,24 @@ def plot_batch(
         plt.subplot(rows, cols, i + 1)
         plot_func({k: v[i] for k, v in data.items()})
     plt.show()
+
+
+def load_artifact(
+    run_id: str, fpath: str, mlclient: mlflow.tracking.MlflowClient
+) -> Any:
+    """Load run artifact."""
+    # If mlflow is local, the following just returns a file path
+    local_path: str = mlclient.download_artifacts(run_id, fpath)
+    # ---------------------------
+    # Load the file accordingly
+    if local_path.endswith(".npz"):
+        artifact = np.load(local_path)
+    elif local_path.endswith(".json"):
+        with open(local_path) as json_artifact:
+            artifact = json.load(json_artifact)
+    else:
+        # Assume it is text file
+        with open(local_path) as artifact_file:
+            artifact = artifact_file.read()
+    # ---------------------------
+    return artifact
