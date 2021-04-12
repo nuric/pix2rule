@@ -89,6 +89,12 @@ def train_ilp(run_name: str = None, initial_epoch: int = 0):
     logger.info("Local artifact dir is %s", str(art_dir))
     is_fastlas = C["train_type"] == "fastlas"
     # ---------------------------
+    # Save task description obtained for this run
+    task_desc_file = art_dir / "task_description.json"
+    logger.info("Saving task description to %s", str(task_desc_file))
+    with task_desc_file.open("w") as fout:
+        json.dump(task_description, fout, indent=4)
+    # ---------------------------
     # Generate search space
     # The following are lines of the LAS of file
     las_lines, max_size = utils.ilasp.generate_search_space(
@@ -103,6 +109,7 @@ def train_ilp(run_name: str = None, initial_epoch: int = 0):
     # Save training file
     all_lines = las_lines + example_lines
     train_file = art_dir / "train.lp"
+    logger.info("Saving training file to: %s", str(train_file))
     with train_file.open("w") as fout:
         fout.writelines(f"{l}\n" for l in all_lines)
     with open("train_las.lp", "w") as fout:
