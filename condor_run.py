@@ -22,6 +22,7 @@ log    = data/outs/$(Cluster)-$(Process).log
 requirements = Target.OpSysAndVer == "Ubuntu20" && regexp("(edge|point|ray|sprite|texel|vertex)\d+.doc.ic.ac.uk", Target.Machine)
 rank = (-Target.TotalLoadAvg) + regexp("vertex\d+.doc.ic.ac.uk", Target.Machine)*4
 arguments = "-c 'data/venv/bin/python3 train.py --config_json $(Item)'"
+environment = "PATH=/homes/nuric/bin:/usr/bin:/usr/local/bin LD_LIBRARY_PATH=/homes/nuric/bin/lib"
 queue from (
 {configs}
 )"""
