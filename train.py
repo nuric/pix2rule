@@ -112,8 +112,6 @@ def train_ilp(run_name: str = None, initial_epoch: int = 0):
     logger.info("Saving training file to: %s", str(train_file))
     with train_file.open("w") as fout:
         fout.writelines(f"{l}\n" for l in all_lines)
-    with open("train_las.lp", "w") as fout:
-        fout.writelines(f"{l}\n" for l in all_lines)
     # ---------------------------
     # Run the training, assuming ILASP and FastLAS in $PATH
     # Run command with a timeout of 1 hour
