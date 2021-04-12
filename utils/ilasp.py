@@ -242,18 +242,11 @@ def run_ilasp(
     return report
 
 
-def run_fastlas(
-    fpath: str, debug: bool = False, threads: int = 8, timeout: int = 3600
-) -> Dict[str, Any]:
+def run_fastlas(fpath: str, debug: bool = False, timeout: int = 3600) -> Dict[str, Any]:
     """Run FastLAS on the given file."""
     # ---------------------------
     # Construct the FastLAS command
-    fastlas_cmd = [
-        "FastLAS",
-        "--threads",
-        str(threads),
-        fpath,
-    ]
+    fastlas_cmd = ["FastLAS", fpath]
     if debug:
         fastlas_cmd.append("--debug")
     # ---------------------------
