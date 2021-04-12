@@ -87,11 +87,12 @@ def train_ilp(run_name: str = None, initial_epoch: int = 0):
     art_dir = Path(C["data_dir"]) / "active_runs" / C["experiment_name"] / run_name
     art_dir.mkdir(parents=True, exist_ok=True)
     logger.info("Local artifact dir is %s", str(art_dir))
+    is_fastlas = C["train_type"] == "fastlas"
     # ---------------------------
     # Generate search space
     # The following are lines of the LAS of file
     las_lines, max_size = utils.ilasp.generate_search_space(
-        task_description
+        task_description, for_fastlas=is_fastlas
     )  # Mode biases etc.
     # ---------------------------
     # Let's now generate and add examples
@@ -111,7 +112,12 @@ def train_ilp(run_name: str = None, initial_epoch: int = 0):
     # Run command with a timeout of 1 hour
     timeout = 3600  # in seconds
     logger.info("Running symbolic learner with timeout %i.", timeout)
-    run_dict = utils.ilasp.run_ilasp(str(train_file), max_size, timeout=timeout)
+    # ---
+    if is_fastlas:
+        run_dict = utils.ilasp.run_fastlas(str(train_file), timeout=timeout)
+    else:
+        run_dict = utils.ilasp.run_ilasp(str(train_file), max_size, timeout=timeout)
+    # ---
     with (art_dir / "train_cmd_out.txt").open("w") as fout:
         fout.write(run_dict["output"])
     logger.info("Learnt rules are %s", run_dict["learnt_rules"])

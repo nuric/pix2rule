@@ -4,6 +4,7 @@ import logging
 import subprocess
 import pprint
 import re
+import time
 
 import tensorflow as tf
 
@@ -67,7 +68,9 @@ def _dummy_task_description(data_config: Dict[str, Any]) -> Dict[str, Any]:
     return task_description
 
 
-def generate_search_space(task_description: Dict[str, Any]) -> Tuple[List[str], int]:
+def generate_search_space(
+    task_description: Dict[str, Any], for_fastlas: bool = False
+) -> Tuple[List[str], int]:
     """Genereate the las file lines for the desired search space."""
     # Generate training file
     num_nullary = task_description["inputs"]["nullary"]["shape"][-1]  # num_nullary
@@ -82,34 +85,51 @@ def generate_search_space(task_description: Dict[str, Any]) -> Tuple[List[str], 
         "#modeb(neq(var(obj), var(obj))).",  # Uniqueness of variables assumption.
         "neq(X, Y) :- obj(X), obj(Y), X != Y.",  # Definition of not equals.
         f"obj(0..{num_objects-1}).",  # Definition of objects, 0..n is inclusive so we subtract 1
-        # These are bias constraints to adjust search space
-        '#bias(":- body(neq(X, Y)), X >= Y.").',  # remove neg redundencies
-        '#bias(":- body(naf(neq(X, Y))).").',  # We don't need not neg(..) in the rule
-        '#bias(":- used(X), used(Y), X!=Y, not diff(X,Y).").',  # Make sure variable use is unique
-        '#bias("diff(X,Y):- body(neq(X,Y)).").',
-        '#bias("diff(X,Y):- body(neq(Y,X)).").',
-        '#bias(":- body(neq(X, _)), not used(X).").',  # Make sure variable is used
-        '#bias(":- body(neq(_, X)), not used(X).").',  # Make sure variable is used
-        '#bias("used(X) :- body(unary(X, _)).").',  # We use a variable if it is in a unary
-        '#bias("used(X) :- body(naf(unary(X, _))).").',
-        '#bias("used(X) :- body(binary(X, _, _)).").',  # or a binary atom
-        '#bias("used(X) :- body(binary(_, X, _)).").',
-        '#bias("used(X) :- body(naf(binary(X, _, _))).").',
-        '#bias("used(X) :- body(naf(binary(_, X, _))).").',
-        '#bias(":- body(binary(X, X, _)).").',  # binary predicates are anti-reflexive
-        '#bias(":- body(naf(binary(X, X, _))).").',
     ]
+    if not for_fastlas:
+        # ILASP requires these, FastLAS does not
+        lines.extend(
+            [
+                # These are bias constraints to adjust search space
+                '#bias(":- body(neq(X, Y)), X >= Y.").',  # remove neg redundencies
+                '#bias(":- body(naf(neq(X, Y))).").',  # We don't need not neg(..) in the rule
+                '#bias(":- used(X), used(Y), X!=Y, not diff(X,Y).").',  # Variable use is unique
+                '#bias("diff(X,Y):- body(neq(X,Y)).").',
+                '#bias("diff(X,Y):- body(neq(Y,X)).").',
+                '#bias(":- body(neq(X, _)), not used(X).").',  # Make sure variable is used
+                '#bias(":- body(neq(_, X)), not used(X).").',  # Make sure variable is used
+                '#bias("used(X) :- body(unary(X, _)).").',  # We use a variable if it is in a unary
+                '#bias("used(X) :- body(naf(unary(X, _))).").',
+                '#bias("used(X) :- body(binary(X, _, _)).").',  # or a binary atom
+                '#bias("used(X) :- body(binary(_, X, _)).").',
+                '#bias("used(X) :- body(naf(binary(X, _, _))).").',
+                '#bias("used(X) :- body(naf(binary(_, X, _))).").',
+                '#bias(":- body(binary(X, X, _)).").',  # binary predicates are anti-reflexive
+                '#bias(":- body(naf(binary(X, X, _))).").',
+            ]
+        )
     # ---------------------------
-    # Add nullary search space
-    lines.append(f"#modeb({num_nullary}, nullary(const(nullary_type))).")
-    # Add unary search space
+    # Setup search space, modeb
     unary_size = num_variables * num_unary
-    lines.append(f"#modeb({unary_size}, unary(var(obj), const(unary_type))).")
-    # Add binary search space
     binary_size = num_variables * (num_variables - 1) * num_binary
-    lines.append(
-        f"#modeb({binary_size}, binary(var(obj), var(obj), const(binary_type)))."
-    )
+    # ---
+    if for_fastlas:
+        # It seems in FastLAS you need to specify the negation as well
+        # Add nullary search space
+        lines.append("#modeb(nullary(const(nullary_type))).")
+        lines.append("#modeb(not nullary(const(nullary_type))).")
+        # Add unary search space
+        lines.append("#modeb(unary(var(obj), const(unary_type))).")
+        lines.append("#modeb(not unary(var(obj), const(unary_type))).")
+        # Add binary search space
+        lines.append("#modeb(binary(var(obj), var(obj), const(binary_type))).")
+        lines.append("#modeb(not binary(var(obj), var(obj), const(binary_type))).")
+    else:
+        lines.append(f"#modeb({num_nullary}, nullary(const(nullary_type))).")
+        lines.append(f"#modeb({unary_size}, unary(var(obj), const(unary_type))).")
+        lines.append(
+            f"#modeb({binary_size}, binary(var(obj), var(obj), const(binary_type)))."
+        )
     # ---------------------------
     # Add constants
     for ctype, count in [
@@ -123,7 +143,8 @@ def generate_search_space(task_description: Dict[str, Any]) -> Tuple[List[str], 
     # ---------------------------
     # Add max penalty for ILASP
     max_size = (num_nullary + unary_size + binary_size) * 3
-    lines.append(f"#max_penalty({max_size}).")
+    if not for_fastlas:
+        lines.append(f"#max_penalty({max_size}).")
     # ---------------------------
     return lines, max_size
 
@@ -204,7 +225,7 @@ def run_ilasp(
         report["output"] = res.stdout
     except subprocess.TimeoutExpired:
         # We ran out of time
-        logger.warning("Symbolic learner timed out.")
+        logger.warning("ILASP timed out.")
     else:
         if parse_output:
             res_lines = [l for l in res.stdout.split("\n") if l]
@@ -217,6 +238,38 @@ def run_ilasp(
             total_time = float(re.findall(r"\d.\d+", res_lines[-2])[0])
             report["learnt_rules"] = learnt_rules
             report["total_time"] = total_time
+    # ---------------------------
+    return report
+
+
+def run_fastlas(fpath: str, debug: bool = False, timeout: int = 3600) -> Dict[str, Any]:
+    """Run FastLAS on the given file."""
+    # ---------------------------
+    # Construct the FastLAS command
+    fastlas_cmd = ["FastLAS", fpath]
+    if debug:
+        fastlas_cmd.append("--debug")
+    # ---------------------------
+    report: Dict[str, Any] = {
+        "total_time": timeout,
+        "learnt_rules": list(),
+        "output": "",
+    }
+    # Call FastLAS
+    try:
+        start_time = time.time()  # elapsed in seconds since epoch 1970
+        res = subprocess.run(
+            fastlas_cmd, capture_output=True, check=True, text=True, timeout=timeout
+        )
+        # res.stdout looks like this for FastLAS:
+        # t :- unary(V1,0), not binary(V1,V0,0), ..., not nullary(0).
+        report["output"] = res.stdout
+        report["total_time"] = time.time() - start_time
+        if not debug:
+            report["learnt_rules"] = [l for l in res.stdout.split("\n") if l]
+    except subprocess.TimeoutExpired:
+        # We ran out of time
+        logger.warning("FastLAS timed out.")
     # ---------------------------
     return report
 
