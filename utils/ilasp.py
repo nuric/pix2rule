@@ -177,6 +177,7 @@ def generate_pos_examples(dset: tf.data.Dataset) -> List[str]:
 def run_ilasp(
     fpath: str,
     max_size: int,
+    version: str = "2i",
     only_search_space: bool = False,
     timeout: int = 3600,
     parse_output: bool = True,
@@ -187,7 +188,7 @@ def run_ilasp(
     # We assume here that ILASP is available in $PATH
     ilasp_cmd = [
         "ILASP",
-        "--version=4",
+        f"--version={version}",
         "--no-constraints",
         "--no-aggregates",
         f"-ml={max_size}",
