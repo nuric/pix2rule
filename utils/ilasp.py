@@ -85,29 +85,26 @@ def generate_search_space(
         "#modeb(neq(var(obj), var(obj))).",  # Uniqueness of variables assumption.
         "neq(X, Y) :- obj(X), obj(Y), X != Y.",  # Definition of not equals.
         f"obj(0..{num_objects-1}).",  # Definition of objects, 0..n is inclusive so we subtract 1
+        # These are bias constraints to adjust search space
+        '#bias(":- body(neq(X, Y)), X >= Y.").',  # remove neg redundencies
+        '#bias(":- body(naf(neq(X, Y))).").',  # We don't need not neg(..) in the rule
+        '#bias(":- used(X), used(Y), X!=Y, not diff(X,Y).").',  # Variable use is unique
+        '#bias("diff(X,Y):- body(neq(X,Y)).").',
+        '#bias("diff(X,Y):- body(neq(Y,X)).").',
+        '#bias(":- body(neq(X, _)), not used(X).").',  # Make sure variable is used
+        '#bias(":- body(neq(_, X)), not used(X).").',  # Make sure variable is used
+        '#bias("used(X) :- body(unary(X, _)).").',  # We use a variable if it is in a unary
+        '#bias("used(X) :- body(naf(unary(X, _))).").',
+        '#bias("used(X) :- body(binary(X, _, _)).").',  # or a binary atom
+        '#bias("used(X) :- body(binary(_, X, _)).").',
+        '#bias("used(X) :- body(naf(binary(X, _, _))).").',
+        '#bias("used(X) :- body(naf(binary(_, X, _))).").',
+        '#bias(":- body(binary(X, X, _)).").',  # binary predicates are anti-reflexive
+        '#bias(":- body(naf(binary(X, X, _))).").',
     ]
-    if not for_fastlas:
-        # ILASP requires these, FastLAS does not
-        lines.extend(
-            [
-                # These are bias constraints to adjust search space
-                '#bias(":- body(neq(X, Y)), X >= Y.").',  # remove neg redundencies
-                '#bias(":- body(naf(neq(X, Y))).").',  # We don't need not neg(..) in the rule
-                '#bias(":- used(X), used(Y), X!=Y, not diff(X,Y).").',  # Variable use is unique
-                '#bias("diff(X,Y):- body(neq(X,Y)).").',
-                '#bias("diff(X,Y):- body(neq(Y,X)).").',
-                '#bias(":- body(neq(X, _)), not used(X).").',  # Make sure variable is used
-                '#bias(":- body(neq(_, X)), not used(X).").',  # Make sure variable is used
-                '#bias("used(X) :- body(unary(X, _)).").',  # We use a variable if it is in a unary
-                '#bias("used(X) :- body(naf(unary(X, _))).").',
-                '#bias("used(X) :- body(binary(X, _, _)).").',  # or a binary atom
-                '#bias("used(X) :- body(binary(_, X, _)).").',
-                '#bias("used(X) :- body(naf(binary(X, _, _))).").',
-                '#bias("used(X) :- body(naf(binary(_, X, _))).").',
-                '#bias(":- body(binary(X, X, _)).").',  # binary predicates are anti-reflexive
-                '#bias(":- body(naf(binary(X, X, _))).").',
-            ]
-        )
+    if for_fastlas:
+        # Fix body to in_body
+        lines = [l.replace("body", "in_body").replace("naf", "neg") for l in lines]
     # ---------------------------
     # Setup search space, modeb
     unary_size = num_variables * num_unary
@@ -146,6 +143,10 @@ def generate_search_space(
     if not for_fastlas:
         lines.append(f"#max_penalty({max_size}).")
     # ---------------------------
+    # Add scoring function for FastLAS
+    if for_fastlas:
+        lines.append('#bias("penalty(1, head(X)) :- in_head(X).").')
+        lines.append('#bias("penalty(1, body(X)) :- in_body(X).").')
     return lines, max_size
 
 
@@ -236,6 +237,9 @@ def run_ilasp(
             # ILASP returns rules with semi-colon in body, we adjust them back to commas
             learnt_rules = [r.replace(";", ",") for r in learnt_rules]
             total_time = float(re.findall(r"\d.\d+", res_lines[-2])[0])
+            if any("UNSATISFIABLE" in r for r in learnt_rules):
+                logger.error("ILASP task unsatisfiable.")
+                learnt_rules = list()
             report["learnt_rules"] = learnt_rules
             report["total_time"] = total_time
     # ---------------------------
