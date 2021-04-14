@@ -135,6 +135,8 @@ def train_ilp(run_name: str = None, initial_epoch: int = 0):
         fout.write("\n".join(learnt_program))
     # ---------------------------
     report: Dict[str, float] = {"time": run_dict["total_time"]}
+    if "space_size" in run_dict:
+        report["space_size"] = run_dict["space_size"]
     for key in dsets.keys():
         res = utils.clingo.clingo_rule_check(dsets[key][0], learnt_program)
         acc = np.mean(res == dsets[key][1]["label"])

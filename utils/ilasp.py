@@ -84,7 +84,6 @@ def generate_search_space(
         f"#maxv({num_variables}).",  # Max number of variables.
         "#modeb(neq(var(obj), var(obj))).",  # Uniqueness of variables assumption.
         "neq(X, Y) :- obj(X), obj(Y), X != Y.",  # Definition of not equals.
-        f"obj(0..{num_objects-1}).",  # Definition of objects, 0..n is inclusive so we subtract 1
         # These are bias constraints to adjust search space
         '#bias(":- body(neq(X, Y)), X >= Y.").',  # remove neg redundencies
         '#bias(":- body(naf(neq(X, Y))).").',  # We don't need not neg(..) in the rule
@@ -129,14 +128,18 @@ def generate_search_space(
         )
     # ---------------------------
     # Add constants
+    for i in range(num_objects):
+        lines.append(f"obj({i}).")
     for ctype, count in [
-        ("obj", num_objects),
         ("nullary_type", num_nullary),
         ("unary_type", num_unary),
         ("binary_type", num_binary),
     ]:
         for i in range(count):
-            lines.append(f"#constant({ctype}, {i}).")
+            if for_fastlas:
+                lines.append(f"{ctype}({i}).")
+            else:
+                lines.append(f"#constant({ctype}, {i}).")
     # ---------------------------
     # Add max penalty for ILASP
     max_size = (num_nullary + unary_size + binary_size) * 3
@@ -251,7 +254,13 @@ def run_fastlas(fpath: str, debug: bool = False, timeout: int = 3600) -> Dict[st
     """Run FastLAS on the given file."""
     # ---------------------------
     # Construct the FastLAS command
-    fastlas_cmd = ["FastLAS", fpath]
+    fastlas_cmd = [
+        "FastLAS",
+        "--delay-generalisation",
+        "--space-size",
+        "--solver=ASP",
+        fpath,
+    ]
     if debug:
         fastlas_cmd.append("--debug")
     # ---------------------------
@@ -267,11 +276,16 @@ def run_fastlas(fpath: str, debug: bool = False, timeout: int = 3600) -> Dict[st
             fastlas_cmd, capture_output=True, check=True, text=True, timeout=timeout
         )
         # res.stdout looks like this for FastLAS:
+        # % SPACE SIZE: 2
         # t :- unary(V1,0), not binary(V1,V0,0), ..., not nullary(0).
+        assert res.stdout.startswith(
+            "% SPACE SIZE:"
+        ), f"Unexpected FastLAS output: {res.stdout}"
         report["output"] = res.stdout
         report["total_time"] = time.time() - start_time
+        report["space_size"] = int(res.stdout.split("\n")[0].split(" ")[-1])
         if not debug:
-            report["learnt_rules"] = [l for l in res.stdout.split("\n") if l]
+            report["learnt_rules"] = [l for l in res.stdout.split("\n")[1:] if l]
     except subprocess.TimeoutExpired:
         # We ran out of time
         logger.warning("FastLAS timed out.")
