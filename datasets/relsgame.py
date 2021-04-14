@@ -298,7 +298,7 @@ def load_data() -> Tuple[  # pylint: disable=too-many-locals
         ), f"Expected {dataname} to have {expected} examples, got {array.shape}"
     # ---------------------------
     # Compute max labels for one-hot encoding
-    max_label = max([v.max() for k, v in dnpz.items() if k.endswith("labels")])
+    max_label = int(max([v.max() for k, v in dnpz.items() if k.endswith("labels")]))
     rng = tf.random.Generator.from_seed(C["relsgame_rng_seed"])
     # ---------------------------
     # Curate datasets
@@ -345,7 +345,7 @@ def load_data() -> Tuple[  # pylint: disable=too-many-locals
     # ---------------------------
     # Generate description
     inputs = {
-        k: {"shape": tuple(v.shape), "dtype": v.dtype}
+        k: {"shape": tuple(v.shape), "dtype": v.dtype.name}
         for k, v in dsets["train"].element_spec[0].items()
     }
     inputs["image"]["type"] = "image"
@@ -358,7 +358,7 @@ def load_data() -> Tuple[  # pylint: disable=too-many-locals
     if "label" in output_spec:
         outputs["label"] = {
             "shape": tuple(output_spec["label"].shape),
-            "dtype": output_spec["label"].dtype,
+            "dtype": output_spec["label"].dtype.name,
             "num_categories": max_label + 1,
             "type": "multilabel"
             if len(output_spec["label"].shape) > 1
@@ -369,7 +369,7 @@ def load_data() -> Tuple[  # pylint: disable=too-many-locals
     if "image" in output_spec:
         outputs["image"] = {
             "shape": tuple(output_spec["image"].shape),
-            "dtype": output_spec["image"].dtype,
+            "dtype": output_spec["image"].dtype.name,
         }
     description = {
         "name": "relsgame",
