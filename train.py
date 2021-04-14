@@ -268,6 +268,7 @@ def mlflow_train():
             RunStatus.from_string(run_status)
         ), f"Cannot resume a {run_status} run."
         logger.info("Should resume run with id %s from epoch %i", run_id, initial_epoch)
+        mlflow.set_tag("resumed", True)
     # ---
     # Setup mlflow tracking
     mlflow_run = mlflow.start_run(run_id=run_id)
