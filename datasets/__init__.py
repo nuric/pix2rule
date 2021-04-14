@@ -5,7 +5,6 @@ import configlib
 from configlib import config as C
 
 # Data modules
-from . import sequences
 from . import relsgame
 from . import gendnf
 
@@ -13,7 +12,7 @@ from . import gendnf
 # Dataset registry
 # registry = {d.__name__.split(".")[-1]: d for d in [sequences, relsgame]}
 # type checker seems to not recognise what is going above
-registry = {"sequences": sequences, "relsgame": relsgame, "gendnf": gendnf}
+registry = {"relsgame": relsgame, "gendnf": gendnf}
 # ---------------------------
 
 # ---------------------------
