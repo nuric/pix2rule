@@ -48,12 +48,15 @@ configlib.add_arguments_dict(
 # ---
 # DNF Layer options
 configlib.add_arguments_dict(
+    add_argument, components.dnf_layer.configurable, prefix="hidden"
+)
+configlib.add_arguments_dict(
     add_argument, components.dnf_layer.configurable, prefix="inference"
 )
 add_argument(
     "--iterations",
     type=int,
-    default=2,
+    default=1,
     help="Number of inference steps to perform.",
 )
 # ---------------------------
@@ -134,14 +137,30 @@ def predict_labels_from_facts(
     facts: Dict[str, tf.Tensor], task_description: Dict[str, Any]
 ) -> tf.Tensor:
     """Use DNF layers to predict the label from given facts."""
+    # These are the target rules we want to learn
     target_rules = task_description["outputs"]["label"][
         "target_rules"
     ]  # List of rule arities
+    # ---------------------------
+    # Check for hidden DNF layer:
+    if C["dnf_image_classifier_hidden_arities"]:
+        hidden_dnf = utils.factory.get_and_init(
+            components.dnf_layer,
+            C,
+            "dnf_image_classifier_hidden_",
+            name="hidden_dnf_layer",
+        )
+        facts["apply_activation"] = True
+        facts_kernel = hidden_dnf(facts)
+        facts_kernel = ReportLayer(name="hidden_facts")(facts_kernel)
+        facts = {k: facts_kernel[k] for k in ["nullary", "unary", "binary"]}
+    # ---------------------------
+    # Perform final inference
     dnf_layer = utils.factory.get_and_init(
         components.dnf_layer,
         C,
         "dnf_image_classifier_inference_",
-        arities=target_rules,
+        arities=C["dnf_image_classifier_inference_arities"] + target_rules,
         recursive=C["dnf_image_classifier_iterations"] > 1,
         name="dnf_layer",
     )

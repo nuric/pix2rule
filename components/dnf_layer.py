@@ -20,7 +20,7 @@ from components.initialisers import CategoricalRandomNormal, BernoulliRandomNorm
 configurable: Dict[str, Dict[str, Any]] = {
     "layer_name": {
         "type": str,
-        "default": "DNF",
+        "default": "WeightedDNF",
         "choices": ["DNF", "RealDNF", "WeightedDNF"],
         "help": "DNF layer to use.",
     },
