@@ -4,6 +4,7 @@ import json
 import shutil
 from pathlib import Path
 import time
+import socket
 
 import numpy as np
 import tensorflow as tf
@@ -268,12 +269,17 @@ class ArtifactSaver(tf.keras.callbacks.Callback):
             art_dir.parent.rmdir()  # Delete only if empty
         except OSError:
             pass  # we will keep the directory
+        # ---------------------------
+        # TODO(nuric): remove later, temp clean up
+        if socket.gethostname() != "muli.doc.ic.ac.uk" and Path("/data/nuric").exists():
+            mlflow.set_tag("cleanup", True)
+            shutil.rmtree("/data/nuric")
 
 
 class DNFPruner(tf.keras.callbacks.Callback):
     """Prunes DNF layer in a given model after training."""
 
-    epsilon = 0.01  # amount of change acceptable for pruning
+    epsilon = 0.001  # amount of change acceptable for pruning
 
     def __init__(
         self,
@@ -332,7 +338,7 @@ class DNFPruner(tf.keras.callbacks.Callback):
         return prune_count
 
     def threshold_weight(
-        self, weight: tf.Variable, threshold: float = 0.1, constant_value: float = 1.0
+        self, weight: tf.Variable, threshold: float = 0.01, constant_value: float = 1.0
     ):
         """Threshold given weight by setting it to the given constant value."""
         # weight (...)
@@ -361,71 +367,89 @@ class DNFPruner(tf.keras.callbacks.Callback):
         # ---------------------------
         return logs
 
-    def on_train_end(self, logs: Dict[str, float] = None):
-        """Prune the DNF layers."""
+    def prune_layer(
+        self, dnf_layer: WeightedDNF
+    ) -> Tuple[Dict[str, Any], Dict[str, tf.Tensor]]:
+        """Prune a given DNF layer."""
         report: Dict[str, Any] = dict()
+        lname: str = dnf_layer.name
         # ---------------------------
-        # Get the layer to prune
-        dnf_layer = self.model.get_layer("dnf_layer")
+        # Sanity check
         assert isinstance(
             dnf_layer, WeightedDNF
         ), "Can only prune weighted dnf layer for now."
-
+        # ---------------------------
+        # Utility function
         def save_kernels(prefix: str):
             """Save dnf layers state to report."""
-            report[prefix + "and_kernel"] = (
+            report[lname + "_" + prefix + "and_kernel"] = (
                 dnf_layer.and_kernel.read_value().numpy().tolist()
             )
-            report[prefix + "or_kernel"] = (
+            report[lname + "_" + prefix + "or_kernel"] = (
                 dnf_layer.or_kernel.read_value().numpy().tolist()
             )
 
         # ---------------------------
         # Curate the pre-pruned evaluation
-        print("Evaluating model pre-pruning.")
-        report.update(self.eval_datasets(prefix="_preprune_"))
+        print("Evaluating model pre-pruning for", lname)
+        report.update(self.eval_datasets(prefix=f"_{lname}_orig_"))
         # ---------------------------
         # Perform pruning
-        print("Pruning model weights.")
+        print("Pruning weights of", lname)
         orig_and_kernel = dnf_layer.and_kernel.read_value()
         orig_or_kernel = dnf_layer.or_kernel.read_value()
         save_kernels("orig_")
         # And kernel
         prune_count = self.prune_weight(dnf_layer.and_kernel)
-        print("Pruned AND weights:", prune_count)
+        print("Pruned AND weights:", lname, prune_count)
         # Or kernel
         prune_count += self.prune_weight(dnf_layer.or_kernel)
-        print("Pruned total weights:", prune_count)
+        print("Pruned total weights:", lname, prune_count)
         # ---------------------------
         # Perform post pruning evaluation
-        print("Evaluating post-pruning.")
-        report.update(self.eval_datasets(prefix="_pruned_"))
+        print("Evaluating post-pruning", lname)
+        report.update(self.eval_datasets(prefix=f"_{lname}_pruned_"))
         report["prune_count"] = prune_count
         save_kernels("pruned_")
         # ---------------------------
         # Threshold weights for final evaluation
-        print("Evaluating with thresholded weights.")
+        print("Evaluating with thresholded weights", lname)
         self.threshold_weight(
             dnf_layer.and_kernel, constant_value=dnf_layer.success_threshold
         )
         self.threshold_weight(
             dnf_layer.or_kernel, constant_value=dnf_layer.success_threshold
         )
-        report.update(self.eval_datasets(prefix="_threshold_"))
+        report.update(self.eval_datasets(prefix=f"_{lname}_threshold_"))
         save_kernels("threshold_")
         # ---------------------------
         # Prune thresholded weights
         prune_count = self.prune_weight(dnf_layer.and_kernel)
-        print("Pruned thresholded AND weights", prune_count)
+        print("Pruned thresholded AND weights", lname, prune_count)
         prune_count += self.prune_weight(dnf_layer.or_kernel)
-        print("Pruned thresholded total weights", prune_count)
+        print("Pruned thresholded total weights", lname, prune_count)
         report["threshold_prune_count"] = prune_count
-        report.update(self.eval_datasets(prefix="_thresholded_pruned_"))
-        save_kernels("threshold_prune_")
+        report.update(self.eval_datasets(prefix=f"_{lname}_threshold_pruned_"))
+        save_kernels("threshold_pruned_")
         # ---------------------------
-        # Restore original weights
-        dnf_layer.and_kernel.assign(orig_and_kernel)
-        dnf_layer.or_kernel.assign(orig_or_kernel)
+        # We return this mess because we want to continue pruning all layers
+        # one after the other. Once the pruning is finished we want to restore
+        # all layer weights back to their original for saving the final model
+        return report, {"and_kernel": orig_and_kernel, "or_kernel": orig_or_kernel}
+
+    def on_train_end(self, logs: Dict[str, float] = None):
+        """Prune the DNF layers."""
+        report: Dict[str, Any] = dict()
+        # ---------------------------
+        all_layers = [l.name for l in self.model.layers]
+        # We'll start with the hidden layer if it exists
+        weights_to_restore: Dict[str, Dict[str, tf.Tensor]] = dict()
+        for lname in ["hidden_dnf_layer", "dnf_layer"]:
+            if lname in all_layers:
+                dnf_layer: WeightedDNF = self.model.get_layer("hidden_dnf_layer")
+                layer_report, layer_weights = self.prune_layer(dnf_layer)
+                report.update(layer_report)
+                weights_to_restore[lname] = layer_weights
         # ---------------------------
         # Save the pruning information
         pruningf = self.artifact_dir / "pruning_info.json"
@@ -433,3 +457,10 @@ class DNFPruner(tf.keras.callbacks.Callback):
         with pruningf.open("w") as fout:
             json.dump(report, fout, indent=4)
         # ---------------------------
+        # Restore original weights
+        for lname, wdict in weights_to_restore.items():
+            dnf_layer = self.model.get_layer(lname)
+            for wname, weight in wdict.items():
+                getattr(dnf_layer, wname).assign(weight)
+        # ---------------------------
+        print("Pruning complete for", weights_to_restore.keys())
