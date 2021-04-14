@@ -143,8 +143,13 @@ def train_ilp(run_name: str = None, initial_epoch: int = 0):
     # ---------------------------
     # Save artifacts to mlflow
     mlflow.log_artifacts(str(art_dir))
-    shutil.rmtree(str(art_dir))
+    shutil.rmtree(str(art_dir), ignore_errors=True)
+    try:
+        art_dir.parent.rmdir()  # Delete only if empty
+    except OSError:
+        pass  # we will keep the directory
     mlflow.log_metrics(report, step=initial_epoch)
+    logger.info("Training completed.")
 
 
 def train(run_name: str = None, initial_epoch: int = 0):
