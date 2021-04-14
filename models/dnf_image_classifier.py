@@ -148,6 +148,7 @@ def predict_labels_from_facts(
     if C["dnf_image_classifier_iterations"] > 1:
         facts = dnf_layer.pad_inputs(facts)  # {'nullary': (B, P0+R0), ...}
     for i in range(C["dnf_image_classifier_iterations"]):
+        facts["apply_activation"] = i < (C["dnf_image_classifier_iterations"] - 1)
         facts_kernel = dnf_layer(facts)  # {'nullary': (B, P0+R0), ...}
         facts_kernel = ReportLayer(name="facts" + str(i))(facts_kernel)
         facts = {k: facts_kernel[k] for k in ["nullary", "unary", "binary"]}
@@ -225,10 +226,6 @@ def build_model(  # pylint: disable=too-many-locals
                 from_logits=True
             )
             metrics["label"] = [tf.keras.metrics.SparseCategoricalAccuracy(name="acc")]
-            if dname == "gendnf":
-                expected_type = "multilabel"
-                loss["label"] = tf.keras.losses.BinaryCrossentropy(from_logits=True)
-                metrics["label"] = [tf.keras.metrics.BinaryAccuracy(name="acc")]
         assert (
             dataset_type == expected_type
         ), f"DNF requires a {expected_type} dataset, got {dataset_type}"

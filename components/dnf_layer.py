@@ -185,7 +185,13 @@ class BaseDNF(tf.keras.layers.Layer):  # pylint: disable=too-many-instance-attri
     ) -> Dict[str, tf.Tensor]:
         """Compute disjunction of given clauses."""
         # disjuncts {'nullary': (B, R0), 'unary': (B, N, R1), 'binary': (B, N, N-1, R2)}
+        # disjuncts {'nullary': (B, R0, H), 'unary': (B, N, R1, H), 'binary': (B, N, N-1, R2, H)}
         raise NotImplementedError(f"BaseDNF must be inherited: {__name__}")
+
+    def apply_activation(self, rules: Dict[str, tf.Tensor]) -> Dict[str, tf.Tensor]:
+        """Apply an activation function to the final truth value of the rules."""
+        # rules {'nullary': (B, R0), 'unary': (B, N, R1), 'binary': (B, N, N-1, R2)}
+        return rules  # By default we don't do anything
 
     def call(self, inputs: Dict[str, tf.Tensor], **kwargs):
         """Perform forward pass of the model."""
@@ -254,6 +260,10 @@ class BaseDNF(tf.keras.layers.Layer):  # pylint: disable=too-many-instance-attri
             rules_dict.keys()
         ), f"Missing predicate keys in {rules_dict.keys()}"
         # {'nullary': (B, R0), 'unary': (B, N, R1), 'binary': (B, N, N-1, R2), ...}
+        # ---------------------------
+        # Optionally apply activation to the final value of the rules
+        if inputs.get("apply_activation", False):
+            rules_dict = self.apply_activation(rules_dict)
         # ---------------------------
         # Collect all return elements
         rules_dict.update(conj_dict)
@@ -374,7 +384,7 @@ class DNF(BaseDNF):  # pylint: disable=too-many-instance-attributes
         self, disjuncts: Dict[str, tf.Tensor]
     ) -> Dict[str, tf.Tensor]:
         """Compute disjunction of given clauses."""
-        # disjuncts {'nullary': (B, R0), 'unary': (B, N, R1), 'binary': (B, N, N-1, R2)}
+        # disjuncts {'nullary': (B, R0, H), 'unary': (B, N, R1, H), 'binary': (B, N, N-1, R2, H)}
         # ---------------------------
         # Setup disjunction kernel
         or_kernel = tf.nn.sigmoid(self.or_kernel / self.temperature)  # (R, H)
@@ -430,7 +440,7 @@ class RealDNF(DNF):
         self, disjuncts: Dict[str, tf.Tensor]
     ) -> Dict[str, tf.Tensor]:
         """Compute disjunction of given clauses."""
-        # disjuncts {'nullary': (B, R0), 'unary': (B, N, R1), 'binary': (B, N, N-1, R2)}
+        # disjuncts {'nullary': (B, R0, H), 'unary': (B, N, R1, H), 'binary': (B, N, N-1, R2, H)}
         # ---------------------------
         # Setup disjunction kernel
         or_kernel = tf.nn.sigmoid(self.or_kernel / self.temperature)  # (R, H)
@@ -543,7 +553,7 @@ class WeightedDNF(BaseDNF):  # pylint: disable=too-many-instance-attributes
         self, disjuncts: Dict[str, tf.Tensor]
     ) -> Dict[str, tf.Tensor]:
         """Compute disjunction of given clauses."""
-        # disjuncts {'nullary': (B, R0), 'unary': (B, N, R1), 'binary': (B, N, N-1, R2)}
+        # disjuncts {'nullary': (B, R0, H), 'unary': (B, N, R1, H), 'binary': (B, N, N-1, R2, H)}
         # ---------------------------
         # Setup disjunction kernel
         unary_index, binary_index = self.rule_idxs
@@ -571,3 +581,11 @@ class WeightedDNF(BaseDNF):  # pylint: disable=too-many-instance-attributes
         # ---------------------------
         rules["or_kernel"] = self.or_kernel  # for logging and analysis
         return rules
+
+    def apply_activation(self, rules: Dict[str, tf.Tensor]) -> Dict[str, tf.Tensor]:
+        """Apply an activation function to the final truth value of the rules."""
+        # rules {'nullary': (B, R0), 'unary': (B, N, R1), 'binary': (B, N, N-1, R2)}
+        # Apply a tanh activation for weighted logic
+        return {
+            k: tf.nn.tanh(v) if k in self.PRED_KEYS else v for k, v in rules.items()
+        }
