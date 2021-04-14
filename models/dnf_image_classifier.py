@@ -278,7 +278,7 @@ def build_model(  # pylint: disable=too-many-locals
         utils.callbacks.ParamScheduler(
             layer_params=[("dnf_layer", "success_threshold")],
             scheduler=utils.schedules.DelayedExponentialDecay(
-                0.05, decay_steps=1, decay_rate=1.07, delay=40
+                0.1, decay_steps=1, decay_rate=1.07, delay=40
             ),
             min_max_values=(0.0, 6.0),
         ),

@@ -446,7 +446,7 @@ class DNFPruner(tf.keras.callbacks.Callback):
         weights_to_restore: Dict[str, Dict[str, tf.Tensor]] = dict()
         for lname in ["hidden_dnf_layer", "dnf_layer"]:
             if lname in all_layers:
-                dnf_layer: WeightedDNF = self.model.get_layer("hidden_dnf_layer")
+                dnf_layer: WeightedDNF = self.model.get_layer(lname)
                 layer_report, layer_weights = self.prune_layer(dnf_layer)
                 report.update(layer_report)
                 weights_to_restore[lname] = layer_weights
