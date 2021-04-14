@@ -153,7 +153,7 @@ def generate_search_space(
     return lines, max_size
 
 
-def generate_pos_examples(dset: tf.data.Dataset) -> List[str]:
+def generate_pos_examples(dset: tf.data.Dataset, with_noise: bool = False) -> List[str]:
     """Generate file lines for positive examples."""
     lines: List[str] = list()
     # ---------------------------
@@ -167,10 +167,15 @@ def generate_pos_examples(dset: tf.data.Dataset) -> List[str]:
         # Write the examples
         # We only have positive examples in which we either want t to be entailed
         # or not, and setup using inclusion and exclusions
-        if label == 1:
-            lines.append(f"#pos(eg{i}, {{t}}, {{}}, {{")
-        else:
-            lines.append(f"#pos(eg{i}, {{}}, {{t}}, {{")
+        template = "#pos(eg{idx}{weight}, {{{inclusions}}}, {{{exclusions}}}, {{"
+        weight = "@1" if with_noise else ""
+        inclusions = "t" if label == 1 else ""
+        exclusions = "" if label == 1 else "t"
+        lines.append(
+            template.format(
+                idx=i, weight=weight, inclusions=inclusions, exclusions=exclusions
+            )
+        )
         lines.extend(str_example)
         lines.append("}).")
     # ---------------------------
