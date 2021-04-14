@@ -468,7 +468,7 @@ def load_data() -> Tuple[  # pylint: disable=too-many-locals
         # {'nullary': (tsize,), 'binary': ...}
         label = dnpz["target"][didxs]
         # Optionally add noise to labels by flipping them
-        if C["gendnf_noise_stddev"]:
+        if dname == "train" and C["gendnf_noise_stddev"]:
             noise_mask = rng.choice(
                 [-1, 1],
                 size=label.size,
