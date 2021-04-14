@@ -77,10 +77,10 @@ add_argument(
 )
 add_argument("--batch_size", default=64, type=int, help="Data batch size.")
 add_argument(
-    "--noise_stddev",
+    "--label_noise_probability",
     default=0.0,
     type=float,
-    help="Added label noise.",
+    help="Added label noise probability for training set.",
 )
 add_argument(
     "--rng_seed",
@@ -468,11 +468,14 @@ def load_data() -> Tuple[  # pylint: disable=too-many-locals
         # {'nullary': (tsize,), 'binary': ...}
         label = dnpz["target"][didxs]
         # Optionally add noise to labels by flipping them
-        if dname == "train" and C["gendnf_noise_stddev"]:
+        if dname == "train" and C["gendnf_label_noise_probability"]:
             noise_mask = rng.choice(
                 [-1, 1],
                 size=label.size,
-                p=[C["gendnf_noise_stddev"], 1 - C["gendnf_noise_stddev"]],
+                p=[
+                    C["gendnf_label_noise_probability"],
+                    1 - C["gendnf_label_noise_probability"],
+                ],
             )
             label *= noise_mask
         label = (label == 1).astype(np.int32)  # convert back to 0, 1 labels
@@ -527,6 +530,7 @@ def load_data() -> Tuple[  # pylint: disable=too-many-locals
             "and_kernel": json.dumps(dnpz["and_kernel"].tolist()),
             "or_kernel": json.dumps(dnpz["or_kernel"].tolist()),
             "rule_str": list(dnpz["rule_str"]),
+            "label_noise_probability": C["gendnf_label_noise_probability"],
         },
     }
     # ---------------------------
