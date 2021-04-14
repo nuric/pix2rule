@@ -36,6 +36,7 @@ relsgame_exp = {
     "max_steps": 60000,
     "eval_every": 200,  # divide max_steps by this to get epochs in keras
     "learning_rate": [0.001, 0.01],
+    "train_type": "deep",
     "dataset_name": "relsgame",
     "relsgame_tasks": [
         ["same"],
@@ -49,74 +50,134 @@ relsgame_exp = {
     "relsgame_validation_size": 1000,
     "relsgame_test_size": 1000,
     "relsgame_batch_size": 128,
+    "relsgame_output_type": "label",
     "run_count": list(range(5)),
+    "relsgame_with_augmentation": True,
+    "relsgame_noise_stddev": 0.01,
+    "relsgame_rng_seed": 42,
 }
-relsgame_models: List[Dict[str, Any]] = [
+# Setup fact sizes to setup a fairer comparison between different models
+NUM_OBJECTS = 4
+NUM_UNARY_FEATS = 8
+NUM_BINARY_FEATS = 16
+facts_size = (
+    NUM_OBJECTS * NUM_UNARY_FEATS + NUM_OBJECTS * (NUM_OBJECTS - 1) * NUM_BINARY_FEATS
+)
+# The following is the base dnf image classifier, it uses one iteration of
+# inference with no hidden learnt predicates
+base_dnf_image_classifier: Dict[str, Any] = {
+    "nickname": "dnf_image_classifier",
+    "model_name": "dnf_image_classifier",
+    "dnf_image_classifier_image_layer_name": "RelationsGameImageInput",
+    "dnf_image_classifier_image_hidden_size": 32,
+    "dnf_image_classifier_image_activation": "relu",
+    "dnf_image_classifier_image_with_position": True,
+    "dnf_image_classifier_object_sel_layer_name": "RelaxedObjectSelection",
+    "dnf_image_classifier_object_sel_num_select": NUM_OBJECTS,
+    "dnf_image_classifier_object_sel_initial_temperature": 0.5,
+    "dnf_image_classifier_object_feat_layer_name": "LinearObjectFeatures",
+    "dnf_image_classifier_object_feat_unary_size": NUM_UNARY_FEATS,
+    "dnf_image_classifier_object_feat_binary_size": NUM_BINARY_FEATS,
+    "dnf_image_classifier_object_feat_activation": "tanh",
+    "dnf_image_classifier_hidden_arities": [],
+    "dnf_image_classifier_hidden_layer_name": "WeightedDNF",
+    "dnf_image_classifier_hidden_num_total_variables": 3,
+    "dnf_image_classifier_hidden_num_conjuncts": 8,
+    "dnf_image_classifier_hidden_recursive": False,
+    "dnf_image_classifier_inference_layer_name": "WeightedDNF",
+    "dnf_image_classifier_inference_arities": [],
+    "dnf_image_classifier_inference_num_total_variables": 3,
+    "dnf_image_classifier_inference_num_conjuncts": 8,
+    "dnf_image_classifier_inference_recursive": False,
+    "dnf_image_classifier_iterations": 1,
+}
+# The following model uses one hidden dnf layer by specifying the arities of
+# the hidden predicates
+dnf_image_classifier_hidden = base_dnf_image_classifier.copy()
+# You can read the following as, 4 nullary, 8 unary and 12 binary predicates
+hidden_arities = [0] * 4 + [1] * 8 + [2] * 12
+dnf_image_classifier_hidden.update(
     {
-        "model_name": "dnf_image_classifier",
-        "dnf_image_layer_name": "RelationsGameImageInput",
-        "dnf_image_hidden_size": 32,
-        "dnf_image_activation": ["relu", "tanh"],
-        "dnf_image_noise_stddev": 0.01,
-        "dnf_image_with_position": True,
-        "dnf_object_sel_layer_name": "RelaxedObjectSelection",
-        "dnf_object_sel_num_select": 4,
-        "dnf_object_sel_initial_temperature": 1.0,
-        "dnf_object_feat_layer_name": "LinearObjectFeatures",
-        "dnf_object_feat_unary_size": 6,
-        "dnf_object_feat_binary_size": 12,
-        "dnf_object_feat_activation": "sigmoid",
-        "dnf_inference_layer_name": "DNF",
-        "dnf_inference_num_total_variables": 3,
-        "dnf_inference_num_conjuncts": 8,
-        "dnf_iterations": 1,
-        "relsgame_one_hot_labels": True,
-    },
+        "nickname": "dnf_image_classifier_hidden",
+        "dnf_image_classifier_hidden_arities": hidden_arities,
+    }
+)
+# Finally the recursive model, which iterates twice with hidden predicates
+dnf_image_classifier_recursive = base_dnf_image_classifier.copy()
+dnf_image_classifier_recursive.update(
+    {
+        "nickname": "dnf_image_classifier_recursive",
+        "dnf_image_classifier_inference_arities": hidden_arities,
+        "dnf_image_classifier_inference_recursive": True,
+        "dnf_image_classifier_inference_iterations": 2,
+    }
+)
+# The MLP baseline models, 1 and 2 hidden layers
+single_mlp = {
+    "nickname": "single_mlp",
+    "model_name": "mlp",
+    "mlp_image_classifier_image_layer_name": "RelationsGameImageInput",
+    "mlp_image_classifier_image_hidden_size": 32,
+    "mlp_image_classifier_image_activation": "relu",
+    "mlp_image_classifier_image_with_position": True,
+    "mlp_image_classifier_hidden_sizes": [facts_size],
+    "mlp_image_classifier_hidden_activations": ["relu"],
+}
+double_mlp = single_mlp.copy()
+double_mlp.update(
+    {
+        "nickname": "double_mlp",
+        "mlp_image_classifier_hidden_sizes": [facts_size, facts_size],
+        "mlp_image_classifier_hidden_activations": ["relu", "relu"],
+    }
+)
+relsgame_models: List[Dict[str, Any]] = [
+    base_dnf_image_classifier,
+    dnf_image_classifier_hidden,
+    dnf_image_classifier_recursive,
+    single_mlp,
+    double_mlp,
     {
         "model_name": "predinet",
         "predinet_image_layer_name": "RelationsGameImageInput",
         "predinet_image_hidden_size": 32,
         "predinet_image_activation": "relu",
-        "predinet_image_noise_stddev": 0.0,
         "predinet_image_with_position": True,
-        "predinet_relations": 6,
-        "predinet_heads": 12,
+        "predinet_relations": NUM_BINARY_FEATS,
+        "predinet_heads": facts_size // NUM_BINARY_FEATS,
         "predinet_key_size": 32,
         "predinet_output_hidden_size": 64,
     },
 ]
-relsgame_exps = hp.chain(
-    hp.generate(relsgame_exp), *[hp.generate(m) for m in relsgame_models]
-)
+relsgame_exps = hp.chain(hp.generate(relsgame_exp), relsgame_models)
 # all_experiments.extend(relsgame_exps)
 # ---------------------------
 gendnf_exp = {
     "tracking_uri": "http://muli.doc.ic.ac.uk:8888",
-    "experiment_name": "gendnf-full-" + current_dt,
+    "experiment_name": "fastlas-full-" + current_dt,
     "max_steps": 30000,
     "eval_every": 200,  # divide max_steps by this to get epochs in keras
     "learning_rate": 0.01,
     "dataset_name": "gendnf",
     "gendnf_target_arity": 0,  # we are learning a single propositional rule
     "gendnf_gen_size": 10000,
-    "gendnf_train_size": 1000,
+    "gendnf_train_size": 2000,
     "gendnf_validation_size": 1000,
     "gendnf_test_size": 1000,
-    "gendnf_batch_size": 64,
+    "gendnf_batch_size": 128,
     "gendnf_noise_stddev": 0.0,
-    # EuroMillions winning numbers 26 March 2021, draw 1410
-    "gendnf_rng_seed": [10, 12, 37, 49, 50, 3, 8],
-    "run_count": list(range(5)),
+    # EuroMillions winning draw 25 December 2020
+    "gendnf_rng_seed": [16, 21, 27, 30, 32, 3, 5],
 }
 gendnf_datasets = [
     {
         "gendnf_difficulty": "easy",
-        "gendnf_num_objects": 4,
-        "gendnf_num_nullary": 1,
+        "gendnf_num_objects": 3,
+        "gendnf_num_nullary": 2,
         "gendnf_num_unary": 2,
         "gendnf_num_binary": 2,
         "gendnf_num_variables": 2,
-        "gendnf_num_conjuncts": 4,
+        "gendnf_num_conjuncts": 3,
     },
     {
         "gendnf_difficulty": "medium",
@@ -134,19 +195,29 @@ gendnf_datasets = [
         "gendnf_num_unary": 7,
         "gendnf_num_binary": 8,
         "gendnf_num_variables": 3,
-        "gendnf_num_conjuncts": 4,
+        "gendnf_num_conjuncts": 5,
     },
 ]
 gendnf_models: List[Dict[str, Any]] = [
-    {
-        "train_type": "deep",
-        "model_name": "dnf_rule_learner",
-        "dnf_rule_learner_inference_layer_name": "WeightedDNF",
-    },
     # {
     #     "train_type": "ilasp",
+    #     "gendnf_return_numpy": True,
     # },
+    {
+        "train_type": "fastlas",
+        "gendnf_return_numpy": True,
+    },
 ]
+# gendnf_models.extend(
+#     hp.generate(
+#         {
+#             "train_type": "deep",
+#             "model_name": "dnf_rule_learner",
+#             "dnf_rule_learner_inference_layer_name": "WeightedDNF",
+#             "run_count": list(range(5)),
+#         }
+#     )
+# )
 gendnf_exps = hp.chain(hp.generate(gendnf_exp), gendnf_datasets, gendnf_models)
 all_experiments.extend(gendnf_exps)
 # ---------------------------
