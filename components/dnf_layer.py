@@ -263,7 +263,7 @@ class BaseDNF(tf.keras.layers.Layer):  # pylint: disable=too-many-instance-attri
         # ---------------------------
         # Optionally apply activation to the final value of the rules
         rules_dict = tf.cond(
-            inputs.get("apply_activation", False),
+            inputs.get("apply_activation", tf.constant(False)),
             lambda: self.apply_activation(rules_dict),
             lambda: rules_dict,
         )
