@@ -230,15 +230,12 @@ def build_model(  # pylint: disable=too-many-locals
         predictions = predict_labels_from_facts(facts, task_description)  # (B, R)
         outputs["label"] = predictions
         dataset_type = task_description["outputs"]["label"]["type"]
-        dname = task_description["name"]
         lname = C["dnf_image_classifier_inference_layer_name"]
         # ---
         if lname == "DNF":
             expected_type = "multilabel"
             loss["label"] = tf.keras.losses.BinaryCrossentropy(from_logits=False)
             metrics["label"] = [tf.keras.metrics.CategoricalAccuracy(name="acc")]
-            if dname == "gendnf":
-                metrics["label"] = [tf.keras.metrics.BinaryAccuracy(name="acc")]
         else:
             expected_type = "multiclass"
             loss["label"] = tf.keras.losses.SparseCategoricalCrossentropy(
