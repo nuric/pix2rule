@@ -45,5 +45,5 @@ class ReportLayer(tf.keras.layers.Layer):
     def call(self, inputs: Dict[str, tf.Tensor], **kwargs):
         """Report and return every tensor passing through."""
         for key, tensor in inputs.items():
-            report_tensor(key, tensor)
+            report_tensor(self.name + "_" + key, tensor)
         return inputs
