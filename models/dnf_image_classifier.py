@@ -91,7 +91,7 @@ def process_image(image: tf.Tensor, _: Dict[str, Any]) -> tf.Tensor:
     )
     selected_objects = obj_selector(raw_objects)
     # {'object_scores': (B, N), 'object_atts': (B, N, O), 'objects': (B, N, E)}
-    selected_objects = ReportLayer()(selected_objects)
+    selected_objects = ReportLayer(name="object_sel")(selected_objects)
     # ---------------------------
     return selected_objects["objects"]
 
@@ -275,10 +275,12 @@ def build_model(  # pylint: disable=too-many-locals
         utils.callbacks.ParamScheduler(
             layer_params=[("dnf_layer", "success_threshold")],
             scheduler=utils.schedules.DelayedExponentialDecay(
-                0.1, decay_steps=1, decay_rate=1.07, delay=40
+                0.1, decay_steps=1, decay_rate=1.06, delay=40
             ),
             min_max_values=(0.0, 6.0),
         ),
     ]
+    if C["dnf_image_classifier_hidden_arities"]:
+        callbacks[-1].layer_params.append(("hidden_dnf_layer", "success_threshold"))
     # ---
     return {"model": model, "loss": loss, "metrics": metrics, "callbacks": callbacks}
