@@ -32,7 +32,7 @@ current_dt = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 # Relsgame dataset with different training sizes
 relsgame_exp = {
     "tracking_uri": "http://muli.doc.ic.ac.uk:8888",
-    "experiment_name": "relsgame-full-" + current_dt,
+    "experiment_name": "relsgame-" + current_dt,
     "max_steps": 60000,
     "eval_every": 200,  # divide max_steps by this to get epochs in keras
     "learning_rate": [0.001, 0.01],
@@ -82,7 +82,7 @@ base_dnf_image_classifier: Dict[str, Any] = {
     "dnf_image_classifier_hidden_arities": [],
     "dnf_image_classifier_hidden_layer_name": "WeightedDNF",
     "dnf_image_classifier_hidden_num_total_variables": 3,
-    "dnf_image_classifier_hidden_num_conjuncts": 8,
+    "dnf_image_classifier_hidden_num_conjuncts": 4,
     "dnf_image_classifier_hidden_recursive": False,
     "dnf_image_classifier_inference_layer_name": "WeightedDNF",
     "dnf_image_classifier_inference_arities": [],
@@ -94,8 +94,8 @@ base_dnf_image_classifier: Dict[str, Any] = {
 # The following model uses one hidden dnf layer by specifying the arities of
 # the hidden predicates
 dnf_image_classifier_hidden = base_dnf_image_classifier.copy()
-# You can read the following as, 4 nullary, 8 unary and 12 binary predicates
-hidden_arities = [0] * 4 + [1] * 8 + [2] * 12
+# You can read the following as, 2 nullary, 4 unary and 8 binary predicates
+hidden_arities = [0] * 2 + [1] * 4 + [2] * 8
 dnf_image_classifier_hidden.update(
     {
         "nickname": "dnf_image_classifier_hidden",
@@ -150,11 +150,11 @@ relsgame_models: List[Dict[str, Any]] = [
     },
 ]
 relsgame_exps = hp.chain(hp.generate(relsgame_exp), relsgame_models)
-# all_experiments.extend(relsgame_exps)
+all_experiments.extend(relsgame_exps)
 # ---------------------------
 gendnf_exp = {
     "tracking_uri": "http://muli.doc.ic.ac.uk:8888",
-    "experiment_name": "fastlas-full-" + current_dt,
+    "experiment_name": "gendnf-deep-" + current_dt,
     "max_steps": 30000,
     "eval_every": 200,  # divide max_steps by this to get epochs in keras
     "learning_rate": 0.01,
@@ -198,28 +198,32 @@ gendnf_datasets = [
         "gendnf_num_conjuncts": 5,
     },
 ]
-gendnf_models: List[Dict[str, Any]] = [
-    # {
-    #     "train_type": "ilasp",
-    #     "gendnf_return_numpy": True,
-    # },
+gendnf_deep_models = hp.generate(
+    {
+        "train_type": "deep",
+        "model_name": "dnf_rule_learner",
+        "dnf_rule_learner_inference_layer_name": "WeightedDNF",
+        "run_count": list(range(5)),
+    }
+)
+gendnf_deep_exps = hp.chain(
+    hp.generate(gendnf_exp), gendnf_datasets, gendnf_deep_models
+)
+all_experiments.extend(gendnf_deep_exps)
+# ---
+gendnf_exp["experiment_name"] = "gendnf-ilp-" + current_dt
+gendnf_ilp_models: List[Dict[str, Any]] = [
+    {
+        "train_type": "ilasp",
+        "gendnf_return_numpy": True,
+    },
     {
         "train_type": "fastlas",
         "gendnf_return_numpy": True,
     },
 ]
-# gendnf_models.extend(
-#     hp.generate(
-#         {
-#             "train_type": "deep",
-#             "model_name": "dnf_rule_learner",
-#             "dnf_rule_learner_inference_layer_name": "WeightedDNF",
-#             "run_count": list(range(5)),
-#         }
-#     )
-# )
-gendnf_exps = hp.chain(hp.generate(gendnf_exp), gendnf_datasets, gendnf_models)
-all_experiments.extend(gendnf_exps)
+gendnf_ilp_exps = hp.chain(hp.generate(gendnf_exp), gendnf_datasets, gendnf_ilp_models)
+all_experiments.extend(gendnf_ilp_exps)
 # ---------------------------
 # Ask user if they are on the right path (?)
 print("---------------------------")
