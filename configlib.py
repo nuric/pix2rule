@@ -64,6 +64,12 @@ def parse(save_fname: str = "") -> str:
         # [myconfigs, json], 2348725
         with open(".".join(json_path)) as json_file:
             json_index = json.load(json_file)
+            # Warn against missing keys, this is not all bad as
+            # the user might want to add extra labels and tags
+            diff = set(json_index[index].keys()) - set(config.keys())
+            if diff:
+                logger.warning("Unspecified configuration keys: %s", str(diff))
+            # Update the global configuration
             config.update(json_index[index])
             logger.info(
                 "Loaded %d parameters from %s",
