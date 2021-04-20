@@ -43,7 +43,6 @@ relsgame_exp = {
         ["between"],
         ["occurs"],
         ["xoccurs"],
-        ["colour_and_or_shape"],
         [],
     ],
     "relsgame_train_size": [1000, 5000, 10000],
@@ -165,7 +164,7 @@ gendnf_exp = {
     "gendnf_validation_size": 1000,
     "gendnf_test_size": 1000,
     "gendnf_batch_size": 128,
-    "gendnf_noise_stddev": 0.0,
+    "gendnf_label_noise_probability": 0.0,
     # EuroMillions winning draw 25 December 2020
     "gendnf_rng_seed": [16, 21, 27, 30, 32, 3, 5],
 }

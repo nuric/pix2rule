@@ -81,9 +81,9 @@ def build_model(  # pylint: disable=too-many-locals
     # Compile model for training
     dataset_type = task_description["output"]["type"]
     assert (
-        dataset_type == "multiclass"
-    ), f"MLP classifier requires a multiclass dataset, got {dataset_type}"
-    loss = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
-    metrics = [tf.keras.metrics.SparseCategoricalAccuracy(name="acc")]
+        dataset_type == "binary"
+    ), f"MLP image classifier requires a binary classification dataset, got {dataset_type}"
+    loss = tf.keras.losses.BinaryCrossentropy(from_logits=True)
+    metrics = tf.keras.metrics.BinaryAccuracy(name="acc")
     # ---------------------------
     return {"model": model, "loss": loss, "metrics": metrics}

@@ -229,23 +229,8 @@ def build_model(  # pylint: disable=too-many-locals
     if "label" in task_description["outputs"]:
         predictions = predict_labels_from_facts(facts, task_description)  # (B, R)
         outputs["label"] = predictions
-        dataset_type = task_description["outputs"]["label"]["type"]
-        lname = C["dnf_image_classifier_inference_layer_name"]
-        # ---
-        if lname == "DNF":
-            expected_type = "multilabel"
-            loss["label"] = tf.keras.losses.BinaryCrossentropy(from_logits=False)
-            metrics["label"] = [tf.keras.metrics.CategoricalAccuracy(name="acc")]
-        else:
-            expected_type = "multiclass"
-            loss["label"] = tf.keras.losses.SparseCategoricalCrossentropy(
-                from_logits=True
-            )
-            metrics["label"] = [tf.keras.metrics.SparseCategoricalAccuracy(name="acc")]
-        assert (
-            dataset_type == expected_type
-        ), f"DNF requires a {expected_type} dataset, got {dataset_type}"
-    # ---
+        loss["label"] = tf.keras.losses.BinaryCrossentropy(from_logits=True)
+        metrics["label"] = tf.keras.metrics.BinaryAccuracy(name="acc")
     # ---
     model = tf.keras.Model(
         inputs=dnf_inputs["input_layers"],
@@ -275,7 +260,7 @@ def build_model(  # pylint: disable=too-many-locals
         utils.callbacks.ParamScheduler(
             layer_params=[("dnf_layer", "success_threshold")],
             scheduler=utils.schedules.DelayedExponentialDecay(
-                0.1, decay_steps=1, decay_rate=1.06, delay=40
+                0.1, decay_steps=1, decay_rate=1.06, delay=20
             ),
             min_max_values=(0.0, 6.0),
         ),

@@ -16,7 +16,7 @@ import utils.hashing
 
 logger = logging.getLogger(__name__)
 
-all_tasks = ["same", "between", "occurs", "xoccurs", "colour_and_or_shape"]
+all_tasks = ["same", "between", "occurs", "xoccurs"]
 all_types = ["pentos", "hexos", "stripes"]
 
 # ---------------------------
@@ -299,6 +299,7 @@ def load_data() -> Tuple[  # pylint: disable=too-many-locals
     # ---------------------------
     # Compute max labels for one-hot encoding
     max_label = int(max([v.max() for k, v in dnpz.items() if k.endswith("labels")]))
+    assert max_label == 1, f"Got more than binary labels, maximum label is {max_label}."
     rng = tf.random.Generator.from_seed(C["relsgame_rng_seed"])
     # ---------------------------
     # Curate datasets
@@ -359,12 +360,10 @@ def load_data() -> Tuple[  # pylint: disable=too-many-locals
         outputs["label"] = {
             "shape": tuple(output_spec["label"].shape),
             "dtype": output_spec["label"].dtype.name,
-            "num_categories": max_label + 1,
-            "type": "multilabel"
-            if len(output_spec["label"].shape) > 1
-            else "multiclass",
+            "num_categories": max_label,
+            "type": "binary",
             # We are learning a nullary predicate for each label
-            "target_rules": [0] * (max_label + 1),
+            "target_rules": [0],
         }
     if "image" in output_spec:
         outputs["image"] = {
