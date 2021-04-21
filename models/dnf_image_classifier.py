@@ -178,7 +178,7 @@ def predict_labels_from_facts(
         count = target_rules.count(arity)
         if count:
             predictions.append(facts[key][..., -count:])  # (B, ..., Rcount)
-    predictions = flatten_concat(predictions)  # (B, R)
+    predictions = L.Lambda(flatten_concat, name="label")(predictions)  # (B, R)
     # ---------------------------
     return predictions
 
