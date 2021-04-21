@@ -103,3 +103,9 @@ def load_artifact(
             artifact = artifact_file.read()
     # ---------------------------
     return artifact
+
+
+def filter_by_dict(dframe: pd.DataFrame, filter_dict: Dict[str, Any]) -> pd.DataFrame:
+    """Filter a given dataframe by using values from a dictionary."""
+    # https://stackoverflow.com/questions/34157811/filter-a-pandas-dataframe-using-values-from-a-dict
+    return dframe.loc[(dframe[list(filter_dict)] == pd.Series(filter_dict)).all(axis=1)]
