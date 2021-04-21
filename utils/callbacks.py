@@ -305,6 +305,8 @@ class DNFPruner(tf.keras.callbacks.Callback):
             vdset, verbose=0, return_dict=True
         )
         # {'acc': 0.5, 'loss': 0...}
+        # or {'label_acc':}
+        acc_key = "acc" if "acc" in curr_log else "label_acc"
         # ---------------------------
         # We will perform pruning by iterating through every entry
         # and setting to 0
@@ -325,9 +327,10 @@ class DNFPruner(tf.keras.callbacks.Callback):
                 vdset, verbose=0, return_dict=True
             )
             # {'acc': 0.5, 'loss': 0...}
+            # or {'label_acc':}
             # ---------------------------
             # Did we perform better or within epsilon limit
-            if curr_log["acc"] - test_log["acc"] < self.epsilon:
+            if curr_log[acc_key] - test_log[acc_key] < self.epsilon:
                 # We have an acceptable new kernel
                 curr_weight *= mask
                 # curr_log = test_log
