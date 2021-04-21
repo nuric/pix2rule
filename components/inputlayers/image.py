@@ -62,7 +62,7 @@ class BaseImageInput(L.Layer):
         # Construct and append positions
         spacial_dims = inputs.shape[1:-1]  # [W, H]
         assert all(
-            i > 0 for i in spacial_dims
+            i is not None and i > 0 for i in spacial_dims
         ), f"Spacial dimensions need to be non-zero, {spacial_dims}."
         ranges = [tf.linspace(0.0, 1.0, res) for res in spacial_dims]  # [(W,), (H,)]
         grid = tf.meshgrid(*ranges, indexing="ij")  # [(W, H), (W, H)]

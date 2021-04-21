@@ -256,8 +256,11 @@ def data_augmentation(
         aug_img = tf.image.stateless_random_flip_left_right(inputs["image"], seed)
         seed = rng.uniform_full_int((2,), dtype=tf.int32)
         aug_img = tf.image.stateless_random_flip_up_down(aug_img, seed)
-        num_rotations = rng.uniform((), minval=0, maxval=2, dtype=tf.int32)  # 0 or 1
-        aug_img = tf.image.rot90(aug_img, k=num_rotations)
+        should_rotate = (
+            rng.uniform(tf.shape(aug_img)[:1], minval=0, maxval=2, dtype=tf.int32) == 1
+        )  # (B,) 0 or 1
+        rot_img = tf.image.rot90(aug_img, k=1)  # This applies to entire batch
+        aug_img = tf.where(should_rotate[:, None, None, None], rot_img, aug_img)
         new_inputs["image"] = aug_img
         if "image" in outputs:
             new_outputs["image"] = aug_img
