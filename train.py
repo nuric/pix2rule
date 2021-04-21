@@ -282,7 +282,7 @@ def mlflow_train():
     # ---------------------------
     # Latch onto signal SIGTERM for graceful termination of long running
     # training jobs. Be nice to other people.
-    signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(0))
+    signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(1))
     # The above code will raise SystemExit exception which we can catch
     # ---------------------------
     # Big data machine learning in the cloud
@@ -294,9 +294,11 @@ def mlflow_train():
     except KeyboardInterrupt:
         logger.warning("Killing training on keyboard interrupt.")
         status = RunStatus.KILLED
-    except SystemExit:
+    except SystemExit as sysexc:
         logger.warning("Pausing training on system exit.")
         status = RunStatus.SCHEDULED
+        # Re-raise to force the interpreter to quit
+        raise SystemExit(1) from sysexc
     finally:
         mlflow.end_run(RunStatus.to_string(status))
 
