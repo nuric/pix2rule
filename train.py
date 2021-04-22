@@ -294,11 +294,9 @@ def mlflow_train():
     except KeyboardInterrupt:
         logger.warning("Killing training on keyboard interrupt.")
         status = RunStatus.KILLED
-    except SystemExit as sysexc:
+    except SystemExit:
         logger.warning("Pausing training on system exit.")
         status = RunStatus.SCHEDULED
-        # Re-raise to force the interpreter to quit
-        raise SystemExit(1) from sysexc
     finally:
         mlflow.end_run(RunStatus.to_string(status))
 
