@@ -467,17 +467,18 @@ def load_data() -> Tuple[  # pylint: disable=too-many-locals
         }
         # {'nullary': (tsize,), 'binary': ...}
         label = dnpz["target"][didxs]
-        # Optionally add noise to labels by flipping them
+        # Optionally add noise to the inputs by flipping them
         if dname == "train" and C["gendnf_label_noise_probability"]:
-            noise_mask = rng.choice(
-                [-1, 1],
-                size=label.size,
-                p=[
-                    C["gendnf_label_noise_probability"],
-                    1 - C["gendnf_label_noise_probability"],
-                ],
-            )
-            label *= noise_mask
+            for k in ("nullary", "unary", "binary"):
+                noise_mask = rng.choice(
+                    [-1, 1],
+                    size=input_dict[k].shape,
+                    p=[
+                        C["gendnf_label_noise_probability"],
+                        1 - C["gendnf_label_noise_probability"],
+                    ],
+                )
+                input_dict[k] *= noise_mask
         label = (label == 1).astype(np.int32)  # convert back to 0, 1 labels
         output_dict = {"label": label}
         tfdata = tf.data.Dataset.from_tensor_slices((input_dict, output_dict))
