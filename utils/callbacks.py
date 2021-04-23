@@ -9,7 +9,6 @@ import socket
 import numpy as np
 import tensorflow as tf
 import mlflow
-from sklearn.cluster import KMeans
 
 from reportlib import create_report
 from components.dnf_layer import WeightedDNF
@@ -341,67 +340,33 @@ class DNFPruner(tf.keras.callbacks.Callback):
         weight.assign(curr_weight)
         return prune_count
 
-    def old_threshold_weight(
-        self, weight: tf.Variable, threshold: float = 2.01, constant_value: float = 1.0
-    ):
-        """Threshold given weight by setting it to the given constant value."""
-        # weight (...)
-        # We will set positive entries to constant_value and
-        # negative values to -constant value
-        pos_mask = tf.cast(weight > threshold, tf.float32)
-        neg_mask = tf.cast(weight < -threshold, tf.float32)
-        new_weight = pos_mask * constant_value - neg_mask * constant_value
-        # ---------------------------
-        # Assign the new weight
-        weight.assign(new_weight)
-
     def threshold_weight(self, weight: tf.Variable, constant_value: float = 1.0):
         """Threshold given weight by setting it to the given constant value."""
         # weight (...)
-        # We will set positive entries to constant_value and
-        # negative values to -constant value
-        np_weight = weight.read_value().numpy()
-        # Cluster if the atom is in the rule or not, 2 clusters.
-        if np.any(np_weight == 0):
-            # Something has been pruned so we have 2 clusters
-            clustering = KMeans(2)
-            flat_weight = np_weight.flatten()[:, None]  # (W, 1)
-            clusters = clustering.fit_predict(np.abs(flat_weight))  # (W,)
-            clusters = clusters.reshape(np_weight.shape)  # (...)
-            # Figure which cluster is which
-            if clustering.cluster_centers_[0, 0] > clustering.cluster_centers_[1, 0]:
-                clusters = 1 - clusters
-        else:
-            # Nothing has been pruned, we will threshold everything
-            clusters = np.ones_like(np_weight, dtype=np.float32)
-        new_weight = clusters * tf.sign(weight) * constant_value
-        # ---------------------------
-        # Assign the new weight
-        weight.assign(new_weight)
-
-    def sample_threshold_weight(self, weight: tf.Variable, constant_value: float = 1.0):
-        """Threshold given weight by setting it to the given constant value."""
-        # weight (...)
-        # We will sample based on the weights, check their performance
+        # We will scan for a threshold range and apply the best one
         # ---------------------------
         # Get the validation dataset
         vdset = next(v for k, v in self.datasets.items() if k.startswith("validation"))
         # ---------------------------
-        # Collect samples based on the weight
-        num_tries = 1000
-        np_weight = tf.nn.tanh(weight.read_value()).numpy()
-        rng = np.random.default_rng()
-        samples = rng.random(num_tries * np_weight.size, dtype=np.float32)  # (N*W,)
-        samples = samples.reshape((num_tries, np_weight.size))  # (N, W)
-        abs_weight = np.abs(np_weight)  # (N,)
-        samples = samples < abs_weight.flatten() / abs_weight.max()  # (N, W)
-        samples = np.unique(samples, axis=0)  # (<N, W)
-        samples = samples.reshape(samples.shape[:1] + np_weight.shape)  # (N, ...)
+        # Utility function
+        orig_weight = weight.read_value()
+
+        def apply_threshold(threshold: float):
+            """Applies the given threshold to the weight."""
+            # Our weights are pre-tanh so adjust the thresold accordingly
+            pre_tanh = tf.math.atanh(threshold)
+            mask = tf.cast(tf.math.abs(orig_weight) > pre_tanh, tf.float32)
+            new_weight = mask * tf.sign(orig_weight) * constant_value
+            weight.assign(new_weight)
+
         # ---------------------------
-        # Evaluate samples
-        sample_scores: List[float] = list()
-        for sample in samples:
-            weight.assign(sample)
+        # Setup threshold range
+        t_scores: List[float] = list()
+        t_values = np.arange(0.0, 0.7, 0.01, dtype=np.float32)
+        # ---------------------------
+        # Evaluate threshold values
+        for tval in t_values:
+            apply_threshold(tval)
             # ---------------------------
             test_log: Dict[str, float] = self.model.evaluate(
                 vdset, verbose=0, return_dict=True
@@ -410,16 +375,13 @@ class DNFPruner(tf.keras.callbacks.Callback):
             # or {'label_acc':}
             acc_key = "loss" if "loss" in test_log else "label_loss"
             # ---------------------------
-            sample_scores.append(test_log[acc_key])
+            t_scores.append(test_log[acc_key])
         # ---------------------------
-        # Find the best sampled weight
-        best_idx = np.array(sample_scores).argmin()
-        best_sample = samples[best_idx]  # (...,)
+        # Find the best threshold value
+        best_t = t_values[np.array(t_scores).argmin()]  # ()
         # ---------------------------
-        # Threshold based on best sample
-        new_weight = best_sample * tf.sign(weight) * constant_value
-        # Assign the new weight
-        weight.assign(new_weight)
+        # Threshold based on best value
+        apply_threshold(best_t)
 
     def eval_datasets(self, tag: str) -> Dict[str, float]:
         """Evaluate the current model on all given datasets."""
