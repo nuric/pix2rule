@@ -165,7 +165,7 @@ class PrediNet(L.Layer):  # pylint: disable=too-many-instance-attributes
         hidden_activations = self.output_hidden(relations)
         output = self.output_layer(hidden_activations)
         # ---------------------------
-        return {"output": output, "att1": att1, "att2": att2}
+        return {"label": output, "att1": att1, "att2": att2}
 
     def get_config(self):
         """Serialisable configuration dictionary."""
@@ -215,19 +215,19 @@ def build_model(  # pylint: disable=too-many-locals
         heads=C["predinet_heads"],
         key_size=C["predinet_key_size"],
         output_hidden_size=C["predinet_output_hidden_size"],
-        num_classes=task_description["output"]["num_categories"],
+        num_classes=task_description["outputs"]["label"]["num_categories"],
     )(input_dict)
     output_dict = ReportLayer()(output_dict)
     # ---------------------------
     # Create model instance
     model = tf.keras.Model(
         inputs=predinet_inputs["input_layers"],
-        outputs=output_dict["output"],
+        outputs={"label": output_dict["label"]},
         name="predinet_model",
     )
     # ---------------------------
     # Compile model for training
-    dataset_type = task_description["output"]["type"]
+    dataset_type = task_description["outputs"]["label"]["type"]
     assert (
         dataset_type == "binary"
     ), f"PrediNet setup requires a binary classification dataset, got {dataset_type}"
