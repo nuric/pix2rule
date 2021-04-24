@@ -78,7 +78,7 @@ def process_image(image: tf.Tensor, _: Dict[str, Any]) -> tf.Tensor:
     # raw_objects = L.LayerNormalization()(raw_objects)  # (B, O, E)
     # ---------------------------
     # Apply point wise transformations to the objects
-    raw_objects = L.Dense(32, activation="tanh")(raw_objects)
+    raw_objects = L.Dense(32, activation="relu")(raw_objects)
     # raw_objects = L.LayerNormalization()(raw_objects)  # (B, O, E)
     # raw_objects = L.Dense(32, activation="tanh")(raw_objects)
     # ---------------------------
@@ -160,7 +160,7 @@ def predict_labels_from_facts(
         components.dnf_layer,
         C,
         "dnf_image_classifier_inference_",
-        arities=C["dnf_image_classifier_inference_arities"] + target_rules,
+        arities=sorted(C["dnf_image_classifier_inference_arities"] + target_rules),
         recursive=C["dnf_image_classifier_iterations"] > 1,
         name="dnf_layer",
     )
