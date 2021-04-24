@@ -38,13 +38,6 @@ relsgame_exp = {
     "learning_rate": [0.001, 0.01],
     "train_type": "deep",
     "dataset_name": "relsgame",
-    "relsgame_tasks": [
-        ["same"],
-        ["between"],
-        ["occurs"],
-        ["xoccurs"],
-        [],
-    ],
     "relsgame_train_size": [1000, 5000, 10000],
     "relsgame_validation_size": 1000,
     "relsgame_test_size": 1000,
@@ -55,13 +48,34 @@ relsgame_exp = {
     "relsgame_noise_stddev": 0.01,
     "relsgame_rng_seed": 42,
 }
-# Setup fact sizes to setup a fairer comparison between different models
-NUM_OBJECTS = 4
+# Setup fact sizes for a fairer comparison between different models.
+# We want the hidden size to be the same.
 NUM_UNARY_FEATS = 8
 NUM_BINARY_FEATS = 16
-facts_size = (
-    NUM_OBJECTS * NUM_UNARY_FEATS + NUM_OBJECTS * (NUM_OBJECTS - 1) * NUM_BINARY_FEATS
-)
+objects_and_variables = {
+    "same": (2, 2),
+    "between": (3, 3),
+    "occurs": (4, 2),
+    "xoccurs": (4, 4),
+    "all": (4, 4),
+}
+relsgame_datasets: List[Dict[str, Any]] = list()
+for dname, (num_objects, num_variables) in objects_and_variables.items():
+    facts_size = (
+        num_objects * NUM_UNARY_FEATS
+        + num_objects * (num_objects - 1) * NUM_BINARY_FEATS
+    )
+    relsgame_datasets.append(
+        {
+            "relsgame_task": [dname] if dname != "all" else [],
+            "dnf_image_classifier_object_sel_num_select": num_objects,
+            "dnf_image_classifier_inference_num_total_variables": num_variables,
+            "mlp_image_classifier_hidden_sizes": [facts_size, facts_size],
+            "predinet_relations": NUM_BINARY_FEATS,
+            "predinet_heads": facts_size // NUM_BINARY_FEATS,
+        }
+    )
+# ---------------------------
 # The following is the base dnf image classifier, it uses one iteration of
 # inference with no hidden learnt predicates
 base_dnf_image_classifier: Dict[str, Any] = {
@@ -72,7 +86,6 @@ base_dnf_image_classifier: Dict[str, Any] = {
     "dnf_image_classifier_image_activation": "relu",
     "dnf_image_classifier_image_with_position": True,
     "dnf_image_classifier_object_sel_layer_name": "RelaxedObjectSelection",
-    "dnf_image_classifier_object_sel_num_select": NUM_OBJECTS,
     "dnf_image_classifier_object_sel_initial_temperature": 0.5,
     "dnf_image_classifier_object_feat_layer_name": "LinearObjectFeatures",
     "dnf_image_classifier_object_feat_unary_size": NUM_UNARY_FEATS,
@@ -85,7 +98,6 @@ base_dnf_image_classifier: Dict[str, Any] = {
     "dnf_image_classifier_hidden_recursive": False,
     "dnf_image_classifier_inference_layer_name": "WeightedDNF",
     "dnf_image_classifier_inference_arities": [],
-    "dnf_image_classifier_inference_num_total_variables": 3,
     "dnf_image_classifier_inference_num_conjuncts": 8,
     "dnf_image_classifier_inference_recursive": False,
     "dnf_image_classifier_iterations": 1,
@@ -111,46 +123,55 @@ dnf_image_classifier_recursive.update(
         "dnf_image_classifier_inference_iterations": 2,
     }
 )
+dnf_image_classifier_models = [
+    base_dnf_image_classifier,
+    dnf_image_classifier_hidden,
+    dnf_image_classifier_recursive,
+]
+# ---------------------------
+# Setup dnf image classifier models that also perform reconstruction
+recon_dnf_image_classifier_models: List[Dict[str, Any]] = list()
+for mdict in dnf_image_classifier_models:
+    mcopy = mdict.copy()
+    mcopy.update(
+        {
+            "nickname": "recon_" + mdict["nickname"],
+            "relsgame_output_type": "label_and_image",
+        }
+    )
+    recon_dnf_image_classifier_models.append(mcopy)
+# ---------------------------
 # The MLP baseline models, 1 and 2 hidden layers
 single_mlp = {
-    "nickname": "single_mlp",
+    "nickname": "mlp2",
     "model_name": "mlp",
     "mlp_image_classifier_image_layer_name": "RelationsGameImageInput",
     "mlp_image_classifier_image_hidden_size": 32,
     "mlp_image_classifier_image_activation": "relu",
     "mlp_image_classifier_image_with_position": True,
-    "mlp_image_classifier_hidden_sizes": [facts_size],
-    "mlp_image_classifier_hidden_activations": ["relu"],
+    "mlp_image_classifier_hidden_activations": ["relu", "relu"],
 }
-double_mlp = single_mlp.copy()
-double_mlp.update(
-    {
-        "nickname": "double_mlp",
-        "mlp_image_classifier_hidden_sizes": [facts_size, facts_size],
-        "mlp_image_classifier_hidden_activations": ["relu", "relu"],
-    }
+relsgame_models: List[Dict[str, Any]] = (
+    dnf_image_classifier_models
+    + recon_dnf_image_classifier_models
+    + [
+        single_mlp,
+        {
+            "nickname": "predinet",
+            "model_name": "predinet",
+            "predinet_image_layer_name": "RelationsGameImageInput",
+            "predinet_image_hidden_size": 32,
+            "predinet_image_activation": "relu",
+            "predinet_image_with_position": True,
+            "predinet_key_size": 32,
+            "predinet_output_hidden_size": 64,
+        },
+    ]
 )
-relsgame_models: List[Dict[str, Any]] = [
-    base_dnf_image_classifier,
-    dnf_image_classifier_hidden,
-    dnf_image_classifier_recursive,
-    single_mlp,
-    double_mlp,
-    {
-        "model_name": "predinet",
-        "predinet_image_layer_name": "RelationsGameImageInput",
-        "predinet_image_hidden_size": 32,
-        "predinet_image_activation": "relu",
-        "predinet_image_with_position": True,
-        "predinet_relations": NUM_BINARY_FEATS,
-        "predinet_heads": facts_size // NUM_BINARY_FEATS,
-        "predinet_key_size": 32,
-        "predinet_output_hidden_size": 64,
-    },
-]
-relsgame_exps = hp.chain(hp.generate(relsgame_exp), relsgame_models)
-all_experiments.extend(relsgame_exps)
+relsgame_exps = hp.chain(hp.generate(relsgame_exp), relsgame_datasets, relsgame_models)
+# all_experiments.extend(relsgame_exps)
 # ---------------------------
+# ILP experiments
 gendnf_exp = {
     "tracking_uri": "http://muli.doc.ic.ac.uk:8888",
     "experiment_name": "gendnf-deep-" + current_dt,
@@ -164,7 +185,6 @@ gendnf_exp = {
     "gendnf_validation_size": 1000,
     "gendnf_test_size": 1000,
     "gendnf_batch_size": 128,
-    "gendnf_label_noise_probability": 0.0,
     # EuroMillions winning draw 25 December 2020
     "gendnf_rng_seed": [16, 21, 27, 30, 32, 3, 5],
 }
@@ -202,6 +222,7 @@ gendnf_deep_models = hp.generate(
         "train_type": "deep",
         "model_name": "dnf_rule_learner",
         "dnf_rule_learner_inference_layer_name": "WeightedDNF",
+        "gendnf_label_noise_probability": [0.0, 0.15, 0.30],
         "run_count": list(range(5)),
     }
 )
@@ -210,6 +231,7 @@ gendnf_deep_exps = hp.chain(
 )
 all_experiments.extend(gendnf_deep_exps)
 # ---
+# Symbolic learners
 gendnf_exp["experiment_name"] = "gendnf-ilp-" + current_dt
 gendnf_ilp_models: List[Dict[str, Any]] = [
     {
@@ -221,8 +243,10 @@ gendnf_ilp_models: List[Dict[str, Any]] = [
         "gendnf_return_numpy": True,
     },
 ]
-gendnf_ilp_exps = hp.chain(hp.generate(gendnf_exp), gendnf_datasets, gendnf_ilp_models)
-all_experiments.extend(gendnf_ilp_exps)
+gendnf_ilp_exps = hp.chain(
+    hp.generate(gendnf_exp), gendnf_datasets[:1], gendnf_ilp_models
+)
+# all_experiments.extend(gendnf_ilp_exps)
 # ---------------------------
 # Ask user if they are on the right path (?)
 print("---------------------------")
