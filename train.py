@@ -25,6 +25,7 @@ import utils.exceptions
 import utils.hashing
 import utils.clingo
 import utils.ilasp
+from condor_run import parse_condor_job_ads
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -168,6 +169,9 @@ def train(run_name: str = None, initial_epoch: int = 0):
     if C["debug"]:
         report = create_report(model, dsets["train"])
         print("Debug report keys:", report.keys())
+    # lr_schedule = tf.keras.optimizers.schedules.PolynomialDecay(
+    #     C["learning_rate"], 140, end_learning_rate=C["learning_rate"] / 10, power=1.0
+    # )
     model.compile(
         optimizer=tf.keras.optimizers.Adam(learning_rate=C["learning_rate"]),
         loss=model_dict["loss"],
@@ -279,6 +283,18 @@ def mlflow_train():
     mlflow.set_tag("config_hash", config_hash)
     mlflow.set_tag("hostname", socket.gethostname())
     logger.info("Artifact uri is %s", mlflow.get_artifact_uri())
+    # ---
+    condor_job_ads = parse_condor_job_ads()
+    if condor_job_ads:
+        keymap = {
+            "globalid": "GlobalJobId",
+            "out": "Out",
+            "err": "Err",
+            "log": "UserLog",
+        }
+        for key, val in keymap.items():
+            logger.info("Condor %s - %s", key, condor_job_ads[key])
+            mlflow.set_tag(val, condor_job_ads[key])
     # ---------------------------
     # Latch onto signal SIGTERM for graceful termination of long running
     # training jobs. Be nice to other people.
