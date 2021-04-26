@@ -32,7 +32,8 @@ def convert_maybe_to_number(input_str: str):
         try:
             return func(input_str)
         except ValueError:
-            continue
+            pass
+    return input_str
 
 
 def collect_experiment_data(
