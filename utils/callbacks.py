@@ -440,9 +440,11 @@ class DNFPruner(tf.keras.callbacks.Callback):
         print("Pruning layer:", dnf_layer.name)
         # ---------------------------
         # Sanity check
-        assert isinstance(
-            dnf_layer, WeightedDNF
-        ), "Can only prune weighted dnf layer for now."
+        # This does not work when the model is reloaded as the class instance
+        # is a compiled version instead of the pure python version.
+        # assert isinstance(
+        #     dnf_layer, WeightedDNF
+        # ), "Can only prune weighted dnf layer for now."
         # ---------------------------
         # First prune the OR kernel, we start with the or kernel because it is
         # closer to the prediction / higher up in the network.
