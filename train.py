@@ -296,15 +296,9 @@ def mlflow_train():
     # ---
     condor_job_ads = parse_condor_job_ads()
     if condor_job_ads:
-        keymap = {
-            "globalid": "GlobalJobId",
-            "out": "Out",
-            "err": "Err",
-            "log": "UserLog",
-        }
-        for key, val in keymap.items():
+        for key in ["GlobalJobId", "Out", "Err", "UserLog"]:
             logger.info("Condor tag %s - %s", key, condor_job_ads[key])
-            mlflow.set_tag(val, condor_job_ads[key])
+            mlflow.set_tag(key, condor_job_ads[key])
     # ---------------------------
     # Latch onto signal SIGTERM for graceful termination of long running
     # training jobs. Be nice to other people.
