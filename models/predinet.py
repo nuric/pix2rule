@@ -231,7 +231,7 @@ def build_model(  # pylint: disable=too-many-locals
     assert (
         dataset_type == "binary"
     ), f"PrediNet setup requires a binary classification dataset, got {dataset_type}"
-    loss = tf.keras.losses.BinaryCrossentropy(from_logits=True)
-    metrics = tf.keras.metrics.BinaryAccuracy(name="acc")
+    loss = {"label": tf.keras.losses.BinaryCrossentropy(from_logits=True)}
+    metrics = {"label": tf.keras.metrics.BinaryAccuracy(name="acc")}
     # ---------------------------
     return {"model": model, "loss": loss, "metrics": metrics}
