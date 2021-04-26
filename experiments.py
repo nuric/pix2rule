@@ -152,18 +152,16 @@ double_mlp = {
     "mlp_image_classifier_image_with_position": True,
     "mlp_image_classifier_hidden_activations": ["relu", "relu"],
 }
-relsgame_predinet_model: List[Dict[str, Any]] = [
-    {
-        "nickname": "predinet",
-        "model_name": "predinet",
-        "predinet_image_layer_name": "RelationsGameImageInput",
-        "predinet_image_hidden_size": 32,
-        "predinet_image_activation": "relu",
-        "predinet_image_with_position": True,
-        "predinet_key_size": 32,
-        "predinet_output_hidden_size": 64,
-    },
-]
+relsgame_predinet_model: Dict[str, Any] = {
+    "nickname": "predinet",
+    "model_name": "predinet",
+    "predinet_image_layer_name": "RelationsGameImageInput",
+    "predinet_image_hidden_size": 32,
+    "predinet_image_activation": "relu",
+    "predinet_image_with_position": True,
+    "predinet_key_size": 32,
+    "predinet_output_hidden_size": 64,
+}
 # ---
 relsgame_exp["experiment_name"] = "relsgame-dnf-" + current_dt
 relsgame_dnf_exps = hp.chain(
@@ -175,13 +173,13 @@ relsgame_exp["experiment_name"] = "relsgame-recon_dnf-" + current_dt
 relsgame_dnf_exps = hp.chain(
     hp.generate(relsgame_exp), relsgame_datasets, recon_dnf_image_classifier_models
 )
-all_experiments.extend(relsgame_dnf_exps)
+# all_experiments.extend(relsgame_dnf_exps)
 # ---
 relsgame_exp["experiment_name"] = "relsgame-predinet-" + current_dt
 relsgame_predinet_exps = hp.chain(
-    hp.generate(relsgame_exp), relsgame_datasets, relsgame_predinet_model
+    hp.generate(relsgame_exp), relsgame_datasets, [relsgame_predinet_model]
 )
-all_experiments.extend(relsgame_predinet_exps)
+# all_experiments.extend(relsgame_predinet_exps)
 # ---------------------------
 # ILP experiments
 gendnf_exp = {
