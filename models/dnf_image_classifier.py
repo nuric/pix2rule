@@ -13,7 +13,6 @@ from components.util_layers import (
     SpacialBroadcast,
     RecombineStackedImage,
 )
-from components.ops import flatten_concat
 from components.inputlayers.categorical import OneHotCategoricalInput
 import components.inputlayers.image
 import components.object_features
@@ -177,8 +176,13 @@ def predict_labels_from_facts(
     for arity, key in enumerate(["nullary", "unary", "binary"]):
         count = target_rules.count(arity)
         if count:
-            predictions.append(facts[key][..., -count:])  # (B, ..., Rcount)
-    predictions = L.Lambda(flatten_concat, name="label")(predictions)  # (B, R)
+            rpreds = facts[key][..., -count:]  # (B, ..., Rcount)
+            flat_rpreds = L.Flatten(name=key)(rpreds)  # (B, ...*Rcount)
+            predictions.append(flat_rpreds)
+    if len(predictions) >= 2:
+        predictions = L.Concatenate(axis=-1, name="label")(predictions)  # (B, R)
+    else:
+        predictions = predictions[0]
     # ---------------------------
     return predictions
 
