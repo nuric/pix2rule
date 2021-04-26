@@ -201,6 +201,15 @@ def train(run_name: str = None, initial_epoch: int = 0):
         # We are resuming
         logger.warning("Resuming training from %s", str(saved_model_dir))
         model = tf.keras.models.load_model(str(saved_model_dir))
+        # There seems to be a bug in TF with dictionary based multiple outputs
+        # and loading a saved model. The following command fails because it
+        # converts metrics into a list of metrics and it is the source of the
+        # bug. So we instead compile again...
+        # model.compiled_metrics.build(model(dt[0]), dt[1])
+        model.compile(
+            loss=model_dict["loss"],
+            metrics=model_dict["metrics"],
+        )
         # Sanity check
         assert (
             model.count_params() == model_num_params
@@ -272,10 +281,11 @@ def mlflow_train():
             RunStatus.from_string(run_status)
         ), f"Cannot resume a {run_status} run."
         logger.info("Should resume run with id %s from epoch %i", run_id, initial_epoch)
-        mlflow.set_tag("resumed", True)
     # ---
     # Setup mlflow tracking
     mlflow_run = mlflow.start_run(run_id=run_id)
+    if run_id:
+        mlflow.set_tag("resumed", True)
     mlflow.log_params(C)
     run_id = mlflow_run.info.run_id  # either brand new or the existing one
     logger.info("Experiment id: %s", mlflow_run.info.experiment_id)
@@ -293,7 +303,7 @@ def mlflow_train():
             "log": "UserLog",
         }
         for key, val in keymap.items():
-            logger.info("Condor %s - %s", key, condor_job_ads[key])
+            logger.info("Condor tag %s - %s", key, condor_job_ads[key])
             mlflow.set_tag(val, condor_job_ads[key])
     # ---------------------------
     # Latch onto signal SIGTERM for graceful termination of long running
