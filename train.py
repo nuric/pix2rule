@@ -105,7 +105,7 @@ def train_ilp(run_name: str = None, initial_epoch: int = 0):
     # Let's now generate and add examples
     example_lines = utils.ilasp.generate_pos_examples(
         dsets["train"],
-        with_noise=task_description["metadata"]["label_noise_probability"] > 0,
+        with_noise=task_description["metadata"]["input_noise_probability"] > 0,
     )  # #pos({...}) examples
     # ---------------------------
     # Save training file
