@@ -4,7 +4,6 @@ import json
 import shutil
 from pathlib import Path
 import time
-import socket
 
 import numpy as np
 import tensorflow as tf
@@ -269,11 +268,6 @@ class ArtifactSaver(tf.keras.callbacks.Callback):
             art_dir.parent.rmdir()  # Delete only if empty
         except OSError:
             pass  # we will keep the directory
-        # ---------------------------
-        # TODO(nuric): remove later, temp clean up
-        if socket.gethostname() != "muli.doc.ic.ac.uk" and Path("/data/nuric").exists():
-            mlflow.set_tag("cleanup", True)
-            shutil.rmtree("/data/nuric")
 
 
 class DNFPruner(tf.keras.callbacks.Callback):

@@ -182,7 +182,7 @@ def generate_pos_examples(dset: tf.data.Dataset, with_noise: bool = False) -> Li
     return lines
 
 
-def run_ilasp(
+def run_ilasp(  # pylint: disable=too-many-arguments
     fpath: str,
     max_size: int,
     version: str = "2i",

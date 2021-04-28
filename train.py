@@ -76,7 +76,9 @@ add_argument(
 # ---------------------------
 
 
-def train_ilp(run_name: str = None, initial_epoch: int = 0):
+def train_ilp(  # pylint: disable=too-many-locals
+    run_name: str = None, initial_epoch: int = 0
+):
     """Train symbolic learners ILASP and FastLAS."""
     # ---------------------------
     # Load data

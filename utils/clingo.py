@@ -30,7 +30,7 @@ def run_clingo(logic_program: List[str], fpath: str = None) -> bool:
     return "UNSATISFIABLE" not in res.stdout
 
 
-def tensor_rule_to_strings(
+def tensor_rule_to_strings(  # pylint: disable=too-many-locals
     interpretation: Dict[str, np.ndarray], rule: Dict[str, np.ndarray]
 ) -> List[str]:
     """Convert rule tensor with respect to a given interpretation into strings."""

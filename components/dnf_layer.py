@@ -188,12 +188,16 @@ class BaseDNF(tf.keras.layers.Layer):  # pylint: disable=too-many-instance-attri
         # disjuncts {'nullary': (B, R0, H), 'unary': (B, N, R1, H), 'binary': (B, N, N-1, R2, H)}
         raise NotImplementedError(f"BaseDNF must be inherited: {__name__}")
 
-    def apply_activation(self, rules: Dict[str, tf.Tensor]) -> Dict[str, tf.Tensor]:
+    def apply_activation(  # pylint: disable=no-self-use
+        self, rules: Dict[str, tf.Tensor]
+    ) -> Dict[str, tf.Tensor]:
         """Apply an activation function to the final truth value of the rules."""
         # rules {'nullary': (B, R0), 'unary': (B, N, R1), 'binary': (B, N, N-1, R2)}
         return rules  # By default we don't do anything
 
-    def call(self, inputs: Dict[str, tf.Tensor], **kwargs):
+    def call(
+        self, inputs: Dict[str, tf.Tensor], **kwargs
+    ):  # pylint: disable=too-many-locals
         """Perform forward pass of the model."""
         # inputs {'nullary_preds': (B, P0), 'unary_preds': (B, N, P1),
         #         'binary_preds': (B, N, N-1, P2)}
@@ -409,7 +413,7 @@ class DNF(BaseDNF):  # pylint: disable=too-many-instance-attributes
         return rules
 
 
-class RealDNF(DNF):
+class RealDNF(DNF):  # pylint: disable=too-many-ancestors
     """Real valued DNF layer."""
 
     def compute_conjunction(self, in_tensor: tf.Tensor) -> Dict[str, tf.Tensor]:
@@ -555,7 +559,7 @@ class WeightedDNF(BaseDNF):  # pylint: disable=too-many-instance-attributes
         # tensor (B, K, N, ..., N-X, RX, H)
         return tf.reduce_max(tensor, axis=axis)
 
-    def compute_disjunction(
+    def compute_disjunction(  # pylint: disable=too-many-locals
         self, disjuncts: Dict[str, tf.Tensor]
     ) -> Dict[str, tf.Tensor]:
         """Compute disjunction of given clauses."""

@@ -147,7 +147,7 @@ def flatten_interpretation(
     return np.concatenate([nullary, flat_unary, flat_binary], -1)  # (..., IN)
 
 
-def evaluate_dnf(
+def evaluate_dnf(  # pylint: disable=too-many-arguments,too-many-locals
     num_objects: int,
     num_vars: int,
     nullary: np.ndarray,
@@ -232,7 +232,7 @@ def evaluate_dnf(
     return or_eval
 
 
-def generate_data() -> str:  # pylint: disable=too-many-locals
+def generate_data() -> str:  # pylint: disable=too-many-locals,too-many-statements
     """Generate and return path to requested data."""
     # Check if this already exists
     fpath = get_build_path()
