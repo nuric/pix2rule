@@ -1,6 +1,7 @@
 # Minimal dependencies to run CI
 # Numerical
 numpy
+pandas
 tensorflow
 tensorflow_probability
 # Tools
@@ -10,3 +11,5 @@ invoke
 pylint
 black
 mypy
+# Plotting
+matplotlib
