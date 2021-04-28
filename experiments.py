@@ -38,10 +38,10 @@ relsgame_exp = {
     "learning_rate": 0.001,
     "train_type": "deep",
     "dataset_name": "relsgame",
-    "relsgame_train_size": [1000, 5000, 10000],
+    "relsgame_train_size": [100, 1000, 5000],
     "relsgame_validation_size": 1000,
     "relsgame_test_size": 1000,
-    "relsgame_batch_size": 128,
+    "relsgame_batch_size": 64,
     "relsgame_output_type": "label",
     "run_count": list(range(5)),
     "relsgame_with_augmentation": True,
@@ -120,6 +120,7 @@ dnf_image_classifier_recursive.update(
     {
         "nickname": "dnf_image_classifier_recursive",
         "dnf_image_classifier_inference_arities": hidden_arities,
+        "dnf_image_classifier_inference_num_conjuncts": 2,
         "dnf_image_classifier_inference_recursive": True,
         "dnf_image_classifier_iterations": 2,
     }
@@ -173,7 +174,7 @@ relsgame_exp["experiment_name"] = "relsgame-recon_dnf-" + current_dt
 relsgame_dnf_exps = hp.chain(
     hp.generate(relsgame_exp), relsgame_datasets, recon_dnf_image_classifier_models
 )
-# all_experiments.extend(relsgame_dnf_exps)
+all_experiments.extend(relsgame_dnf_exps)
 # ---
 relsgame_exp["experiment_name"] = "relsgame-predinet-" + current_dt
 relsgame_predinet_exps = hp.chain(
@@ -232,7 +233,7 @@ gendnf_deep_models = hp.generate(
         "train_type": "deep",
         "model_name": "dnf_rule_learner",
         "dnf_rule_learner_inference_layer_name": "WeightedDNF",
-        "gendnf_label_noise_probability": [0.0, 0.15, 0.30],
+        "gendnf_input_noise_probability": [0.0, 0.15, 0.30],
         "run_count": list(range(5)),
     }
 )
