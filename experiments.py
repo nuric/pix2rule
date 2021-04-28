@@ -168,13 +168,13 @@ relsgame_exp["experiment_name"] = "relsgame-dnf-" + current_dt
 relsgame_dnf_exps = hp.chain(
     hp.generate(relsgame_exp), relsgame_datasets, dnf_image_classifier_models
 )
-all_experiments.extend(relsgame_dnf_exps)
+# all_experiments.extend(relsgame_dnf_exps)
 # ---
 relsgame_exp["experiment_name"] = "relsgame-recon_dnf-" + current_dt
 relsgame_dnf_exps = hp.chain(
     hp.generate(relsgame_exp), relsgame_datasets, recon_dnf_image_classifier_models
 )
-all_experiments.extend(relsgame_dnf_exps)
+# all_experiments.extend(relsgame_dnf_exps)
 # ---
 relsgame_exp["experiment_name"] = "relsgame-predinet-" + current_dt
 relsgame_predinet_exps = hp.chain(
@@ -186,9 +186,9 @@ relsgame_predinet_exps = hp.chain(
 gendnf_exp = {
     "tracking_uri": "http://muli.doc.ic.ac.uk:8888",
     "experiment_name": "gendnf-deep-" + current_dt,
-    "max_steps": 30000,
+    "max_steps": 10000,
     "eval_every": 200,  # divide max_steps by this to get epochs in keras
-    "learning_rate": 0.01,
+    "learning_rate": 0.001,
     "dataset_name": "gendnf",
     "gendnf_target_arity": 0,  # we are learning a single propositional rule
     "gendnf_gen_size": 10000,
@@ -240,7 +240,7 @@ gendnf_deep_models = hp.generate(
 gendnf_deep_exps = hp.chain(
     hp.generate(gendnf_exp), gendnf_datasets, gendnf_deep_models
 )
-# all_experiments.extend(gendnf_deep_exps)
+all_experiments.extend(gendnf_deep_exps)
 # ---
 # Symbolic learners
 gendnf_exp["experiment_name"] = "gendnf-ilp-" + current_dt

@@ -519,18 +519,18 @@ class WeightedDNF(BaseDNF):  # pylint: disable=too-many-instance-attributes
         self.and_kernel = self.add_weight(
             name="and_kernel",
             shape=(len(self.arities), self.num_conjuncts, num_in),
-            initializer=tf.keras.initializers.RandomNormal(mean=0.0, stddev=0.01),
+            initializer=tf.keras.initializers.RandomNormal(mean=0.0, stddev=0.1),
             # regularizer=tf.keras.regularizers.L1(l1=0.01),
         )
         self.or_kernel = self.add_weight(
             name="or_kernel",
             shape=(len(self.arities), self.num_conjuncts),
-            initializer=tf.keras.initializers.RandomNormal(mean=0.0, stddev=0.01),
+            initializer=tf.keras.initializers.RandomNormal(mean=0.0, stddev=0.1),
         )
         self.success_threshold = self.add_weight(
             name="success_threshold",
             shape=(),
-            initializer=tf.keras.initializers.Constant(0.2),
+            initializer=tf.keras.initializers.Constant(0.01),
             constraint=tf.keras.constraints.NonNeg(),
             trainable=False,
         )
@@ -540,16 +540,16 @@ class WeightedDNF(BaseDNF):  # pylint: disable=too-many-instance-attributes
         """Compute kernel based conjunction."""
         # in_tensor (B, K, IN)
         # ---------------------------
-        tanh_and_kernel = tf.nn.tanh(self.and_kernel)  # (R, H, IN)
-        and_weights = (
-            tanh_and_kernel
-            * self.success_threshold
-            / tf.nn.tanh(self.success_threshold)
-        )  # (R, H, IN)
-        conjuncts_eval = in_tensor[:, :, None, None] * and_weights  # (B, K, R, H, IN)
-        and_wsum = 1 - tf.reduce_sum(tf.math.abs(tanh_and_kernel), -1)  # (R, H)
-        and_bias = self.success_threshold * and_wsum  # (R, H)
-        conjuncts = tf.reduce_sum(conjuncts_eval, -1) + and_bias  # (B, K, R, H)
+        conjuncts_eval = (
+            in_tensor[:, :, None, None] * self.and_kernel
+        )  # (B, K, R, H, IN)
+        abs_kernel = tf.math.abs(self.and_kernel)  # (R, H, IN)
+        and_bias = tf.reduce_min(abs_kernel, -1) - tf.reduce_sum(
+            abs_kernel, -1
+        )  # (R, H)
+        conjuncts = (
+            tf.reduce_sum(conjuncts_eval, -1) + self.success_threshold * and_bias
+        )  # (B, K, R, H)
         conjuncts = tf.nn.tanh(conjuncts)  # (B, K, R, H)
         # ---------------------------
         return {"conjuncts": conjuncts, "and_kernel": self.and_kernel}
@@ -579,18 +579,14 @@ class WeightedDNF(BaseDNF):  # pylint: disable=too-many-instance-attributes
         # OR operation
         rules: Dict[str, tf.Tensor] = dict()
         # threshold of success, maximum we expect to output
-        or_threshold = self.success_threshold
         for k, kernel in kernels.items():
-            tanh_kernel = tf.nn.tanh(kernel)  # (RX, H)
-            or_weights = (
-                tanh_kernel
-                * self.success_threshold
-                / tf.nn.tanh(self.success_threshold)
-            )  # (RX, H)
-            kernel_sum = tf.reduce_sum(tf.math.abs(tanh_kernel), -1) - 1  # (RX,)
-            disj_bias = kernel_sum * or_threshold  # (RX,)
+            abs_kernel = tf.math.abs(kernel)  # (RX, H)
+            disj_bias = tf.reduce_sum(abs_kernel, -1) - tf.reduce_max(
+                abs_kernel, -1
+            )  # (RX,)
             disj = (
-                tf.reduce_sum(disjuncts[k] * or_weights, -1) + disj_bias
+                tf.reduce_sum(disjuncts[k] * kernel, -1)
+                + self.success_threshold * disj_bias
             )  # (B, ..., RX)
             rules[k] = disj
         # {'nullary': (B, R0), 'unary': (B, N, R1), 'binary': (B, N, N-1, R2)}

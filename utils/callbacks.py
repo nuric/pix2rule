@@ -210,7 +210,7 @@ class Evaluator(tf.keras.callbacks.Callback):
         # ---------------------------
         report["time"] = time.time() - self.last_time
         self.last_time = time.time()
-        # Save and parint report
+        # Save and print report
         print(
             " ".join([k + " " + "{:.3f}".format(v) for k, v in report.items()]),
         )
@@ -299,8 +299,8 @@ class DNFPruner(tf.keras.callbacks.Callback):
             vdset, verbose=0, return_dict=True
         )
         # {'acc': 0.5, 'loss': 0...}
-        # or {'nullary_acc':}
-        acc_key = "acc" if "acc" in curr_log else "nullary_acc"
+        # or {'nullary_loss':}
+        loss_key = "loss" if "loss" in curr_log else "nullary_loss"
         # ---------------------------
         # We will perform pruning by iterating through every entry
         # and setting to 0
@@ -324,7 +324,7 @@ class DNFPruner(tf.keras.callbacks.Callback):
             # or {'nullary_acc':}
             # ---------------------------
             # Did we perform better or within epsilon limit
-            if curr_log[acc_key] - test_log[acc_key] < self.epsilon:
+            if test_log[loss_key] - curr_log[loss_key] < self.epsilon:
                 # We have an acceptable new kernel
                 curr_weight *= mask
                 # curr_log = test_log
@@ -347,16 +347,14 @@ class DNFPruner(tf.keras.callbacks.Callback):
 
         def apply_threshold(threshold: float):
             """Applies the given threshold to the weight."""
-            # Our weights are pre-tanh so adjust the thresold accordingly
-            pre_tanh = tf.math.atanh(threshold)
-            mask = tf.cast(tf.math.abs(orig_weight) > pre_tanh, tf.float32)
+            mask = tf.cast(tf.math.abs(orig_weight) > threshold, tf.float32)
             new_weight = mask * tf.sign(orig_weight) * constant_value
             weight.assign(new_weight)
 
         # ---------------------------
         # Setup threshold range
         t_scores: List[float] = list()
-        t_values = np.arange(0.0, 0.7, 0.01, dtype=np.float32)
+        t_values = np.arange(0.0, 8.0, 0.1, dtype=np.float32)
         # ---------------------------
         # Evaluate threshold values
         for tval in t_values:
@@ -446,7 +444,7 @@ class DNFPruner(tf.keras.callbacks.Callback):
             (dnf_layer.or_kernel, "or_kernel"),
             (dnf_layer.and_kernel, "and_kernel"),
         ]:
-            kernel_report = self.prune_kernel(kernel, dnf_layer.success_threshold)
+            kernel_report = self.prune_kernel(kernel, 6.0)
             report.update({kname + "." + k: v for k, v in kernel_report.items()})
         # ---------------------------
         return report
