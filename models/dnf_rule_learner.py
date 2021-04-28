@@ -67,7 +67,7 @@ def build_model(  # pylint: disable=too-many-locals
     # Create model with given inputs and outputs
     loss: Dict[str, tf.keras.losses.Loss] = dict()
     metrics: Dict[str, tf.keras.metrics.Metric] = {
-        "label": [tf.keras.metrics.BinaryAccuracy(name="acc")]
+        "label": [tf.keras.metrics.BinaryAccuracy(name="acc", threshold=0.0)]
     }
     outputs: Dict[str, tf.Tensor] = {"label": predictions}
     # ---
@@ -94,7 +94,7 @@ def build_model(  # pylint: disable=too-many-locals
         utils.callbacks.ParamScheduler(
             layer_params=[("dnf_layer", "success_threshold")],
             scheduler=utils.schedules.DelayedExponentialDecay(
-                0.1, decay_steps=1, decay_rate=1.1, delay=1
+                0.2, decay_steps=1, decay_rate=1.1, delay=1
             ),
             min_max_values=(0.0, 1.0),
         ),
