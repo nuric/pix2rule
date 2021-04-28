@@ -117,7 +117,7 @@ def train_ilp(run_name: str = None, initial_epoch: int = 0):
     # ---------------------------
     # Run the training, assuming ILASP and FastLAS in $PATH
     # Run command with a timeout of 1 hour
-    timeout = 3600  # in seconds
+    timeout = 60 * 60 * 2  # 2 hours in seconds
     logger.info("Running symbolic learner with timeout %i.", timeout)
     # ---
     if is_fastlas:
@@ -285,7 +285,7 @@ def mlflow_train():
     # Setup mlflow tracking
     mlflow_run = mlflow.start_run(run_id=run_id)
     if run_id:
-        mlflow.set_tag("resumed", True)
+        mlflow.set_tag("resumed", initial_epoch)
     mlflow.log_params(C)
     run_id = mlflow_run.info.run_id  # either brand new or the existing one
     logger.info("Experiment id: %s", mlflow_run.info.experiment_id)
