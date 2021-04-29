@@ -80,15 +80,15 @@ def tensor_rule_to_strings(  # pylint: disable=too-many-locals
         cstr = ", ".join(conjs)
         conjuncts.append(cstr)
     # Target rule t is now defined according to which conjuncts are in the rule
-    assert np.all(
-        rule["or_kernel"] != -1
-    ), "Clingo cannot work with negated conjunctions inside a disjunction."
-    # or_kernel [0, 1, 0, 0, ...] x H
-    disjuncts = [
-        "t :- {}.".format(conjuncts[i])
-        for i in range(len(conjuncts))
-        if rule["or_kernel"][i] != 0
-    ]
+    disjuncts: List[str] = list()
+    for i, conjunct in enumerate(conjuncts):
+        # or_kernel [0, 1, 0, -1, ...] x H
+        if rule["or_kernel"][i] == 1:
+            disjuncts.append("t :- {}.".format(conjunct))
+        elif rule["or_kernel"][i] == -1:
+            # We need an aux rule to handle this case.
+            disjuncts.append("t :- not c{}.".format(i))
+            disjuncts.append("c{} :- {}.".format(i, conjunct))
     # ---------------------------
     return disjuncts
 
