@@ -2,6 +2,7 @@
 from typing import Dict, List, Tuple, Any
 import pprint
 import json
+import tqdm
 
 import numpy as np
 import pandas as pd
@@ -44,7 +45,7 @@ def collect_experiment_data(
     all_runs = mlclient.search_runs(exp.experiment_id)
     # Process data for each run
     run_pds = list()
-    for run in all_runs:
+    for run in tqdm.tqdm(all_runs):
         # run.data contains .metrics and .params both are dictionaries
         run_dict = dict()
         for metric in run.data.metrics.keys():
