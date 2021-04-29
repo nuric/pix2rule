@@ -99,7 +99,7 @@ base_dnf_image_classifier: Dict[str, Any] = {
     "dnf_image_classifier_hidden_recursive": False,
     "dnf_image_classifier_inference_layer_name": "WeightedDNF",
     "dnf_image_classifier_inference_arities": [],
-    "dnf_image_classifier_inference_num_conjuncts": 4,
+    "dnf_image_classifier_inference_num_conjuncts": 8,
     "dnf_image_classifier_inference_recursive": False,
     "dnf_image_classifier_iterations": 1,
 }
@@ -116,6 +116,7 @@ dnf_image_classifier_hidden.update(
 )
 # Finally the recursive model, which iterates twice with hidden predicates
 dnf_image_classifier_recursive = base_dnf_image_classifier.copy()
+hidden_arities = [0] * 1 + [1] * 2 + [2] * 4
 dnf_image_classifier_recursive.update(
     {
         "nickname": "dnf_image_classifier_recursive",
@@ -168,19 +169,19 @@ relsgame_exp["experiment_name"] = "relsgame-dnf-" + current_dt
 relsgame_dnf_exps = hp.chain(
     hp.generate(relsgame_exp), relsgame_datasets, dnf_image_classifier_models
 )
-# all_experiments.extend(relsgame_dnf_exps)
+all_experiments.extend(relsgame_dnf_exps)
 # ---
 relsgame_exp["experiment_name"] = "relsgame-recon_dnf-" + current_dt
 relsgame_dnf_exps = hp.chain(
     hp.generate(relsgame_exp), relsgame_datasets, recon_dnf_image_classifier_models
 )
-# all_experiments.extend(relsgame_dnf_exps)
+all_experiments.extend(relsgame_dnf_exps)
 # ---
 relsgame_exp["experiment_name"] = "relsgame-predinet-" + current_dt
 relsgame_predinet_exps = hp.chain(
     hp.generate(relsgame_exp), relsgame_datasets, [relsgame_predinet_model]
 )
-# all_experiments.extend(relsgame_predinet_exps)
+all_experiments.extend(relsgame_predinet_exps)
 # ---------------------------
 # ILP experiments
 gendnf_exp = {
@@ -240,7 +241,7 @@ gendnf_deep_models = hp.generate(
 gendnf_deep_exps = hp.chain(
     hp.generate(gendnf_exp), gendnf_datasets, gendnf_deep_models
 )
-all_experiments.extend(gendnf_deep_exps)
+# all_experiments.extend(gendnf_deep_exps)
 # ---
 # Symbolic learners
 gendnf_exp["experiment_name"] = "gendnf-ilp-" + current_dt

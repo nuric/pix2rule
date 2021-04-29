@@ -525,8 +525,7 @@ class WeightedDNF(BaseDNF):  # pylint: disable=too-many-instance-attributes
         self.or_kernel = self.add_weight(
             name="or_kernel",
             shape=(len(self.arities), self.num_conjuncts),
-            initializer=tf.keras.initializers.RandomNormal(mean=1.0, stddev=0.1),
-            constraint=tf.keras.constraints.NonNeg(),
+            initializer=tf.keras.initializers.RandomNormal(mean=0.0, stddev=0.1),
         )
         self.success_threshold = self.add_weight(
             name="success_threshold",

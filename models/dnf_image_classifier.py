@@ -77,7 +77,7 @@ def process_image(image: tf.Tensor, _: Dict[str, Any]) -> tf.Tensor:
     # raw_objects = L.LayerNormalization()(raw_objects)  # (B, O, E)
     # ---------------------------
     # Apply point wise transformations to the objects
-    raw_objects = L.Dense(32, activation="relu")(raw_objects)
+    # raw_objects = L.Dense(32, activation="relu")(raw_objects)
     # raw_objects = L.LayerNormalization()(raw_objects)  # (B, O, E)
     # raw_objects = L.Dense(32, activation="tanh")(raw_objects)
     # ---------------------------
@@ -252,7 +252,7 @@ def build_model(  # pylint: disable=too-many-locals
                 decay_rate=0.9,
                 delay=20,
             ),
-            min_max_values=(0.01, 1.0),
+            min_max_values=(0.01, 5.0),
         ),
         # utils.callbacks.ParamScheduler(
         #     layer_params=[("dnf_layer", "temperature")],
@@ -264,9 +264,9 @@ def build_model(  # pylint: disable=too-many-locals
         utils.callbacks.ParamScheduler(
             layer_params=[("dnf_layer", "success_threshold")],
             scheduler=utils.schedules.DelayedExponentialDecay(
-                0.1, decay_steps=1, decay_rate=1.06, delay=20
+                0.01, decay_steps=1, decay_rate=1.10, delay=20
             ),
-            min_max_values=(0.0, 6.0),
+            min_max_values=(0.0, 1.0),
         ),
     ]
     if C["dnf_image_classifier_hidden_arities"]:
