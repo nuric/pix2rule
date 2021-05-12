@@ -83,7 +83,6 @@ def plot_batch(
     for i in range(size):
         plt.subplot(rows, cols, i + 1)
         plot_func({k: v[i] for k, v in data.items()})
-    plt.show()
 
 
 def load_artifact(
