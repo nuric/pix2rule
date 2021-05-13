@@ -34,23 +34,25 @@ def tensor_rule_to_strings(  # pylint: disable=too-many-locals
     interpretation: Dict[str, np.ndarray], rule: Dict[str, np.ndarray]
 ) -> List[str]:
     """Convert rule tensor with respect to a given interpretation into strings."""
-    # interpretation {'nullary': (B, P0), 'unary': (B, O, P1), 'binary': (B, O, O-1, P2)}
-    # rule {'and_kernel': (H, IN), 'or_kernel': (H,), 'num_variables': int}
+    # interpretation {'nullary': (B, P0), 'unary': (B, O, P1),
+    #                 'binary': (B, O, O-1, P2), 'offsets': (nullary, unary, binary)}
+    # rule {'and_kernel': (H, IN), 'or_kernel': (H,), 'num_variables': int, 'head': str}
     # ---------------------------
     num_nullary = interpretation["nullary"].shape[-1]
     num_unary = interpretation["unary"].shape[-1]
     num_binary = interpretation["binary"].shape[-1]
     num_variables = rule["num_variables"]
+    offsets = interpretation.get("offsets", (0, 0, 0))
     # ---------------------------
     var_bidxs = np.stack(np.nonzero(1 - np.eye(num_variables))).T  # (V*(V-1), 2)
     pred_names = (
-        [f"nullary({i})" for i in range(num_nullary)]
+        [f"nullary({i + offsets[0]})" for i in range(num_nullary)]
         + [
-            f"unary(V{i},{j})"
+            f"unary(V{i},{j + offsets[1]})"
             for i, j in itertools.product(range(num_variables), range(num_unary))
         ]
         + [
-            f"binary(V{i},V{j},{k})"  # There is this modulus business because we omit p(X,X)
+            f"binary(V{i},V{j},{k + offsets[2]})"
             for (i, j), k in itertools.product(var_bidxs, range(num_binary))
         ]
     )  # This is a mess that produces "n0..n, p1..n(V1), p1...n(V2), etc"
@@ -81,16 +83,79 @@ def tensor_rule_to_strings(  # pylint: disable=too-many-locals
         conjuncts.append(cstr)
     # Target rule t is now defined according to which conjuncts are in the rule
     disjuncts: List[str] = list()
+    head = rule.get("head", "t")
     for i, conjunct in enumerate(conjuncts):
         # or_kernel [0, 1, 0, -1, ...] x H
         if rule["or_kernel"][i] == 1:
-            disjuncts.append("t :- {}.".format(conjunct))
+            disjuncts.append(f"{head} :- {conjunct}.")
         elif rule["or_kernel"][i] == -1:
             # We need an aux rule to handle this case.
-            disjuncts.append("t :- not c{}.".format(i))
-            disjuncts.append("c{} :- {}.".format(i, conjunct))
+            propo = f"c{i}{head}"  # aux rule
+            # Check and cover for unsafe variables
+            if head.startswith("unary"):
+                disjuncts.append(f"{head} :- not {propo}, obj(V0).")
+            elif head.startswith("binary"):
+                disjuncts.append(f"{head} :- not {propo}, obj(V0), obj(V1), V0 != V1.")
+            else:
+                disjuncts.append(f"{head} :- not {propo}.")
+            disjuncts.append(f"{propo} :- {conjunct}.")
     # ---------------------------
     return disjuncts
+
+
+def tensor_program_to_strings(  # pylint: disable=too-many-locals
+    interpretation: Dict[str, np.ndarray], rules: List[Dict[str, np.ndarray]]
+) -> List[str]:
+    """Convert program tensor with respect to a given interpretation into strings."""
+    # interpretation {'nullary': (B, P0), 'unary': (B, O, P1), 'binary': (B, O, O-1, P2)}
+    # rules [{'and_kernel': (R, H, IN), 'or_kernel': (R, H), 'num_variables': int, 'arities': [0]},]
+    # ---------------------------
+    pred_name_map = {0: "nullary({})", 1: "unary(V0,{})", 2: "binary(V0,V1,{})"}
+    program: List[str] = list()
+    num_objects = interpretation["unary"].shape[1]  # O
+    last_interp = interpretation
+    # ---------------------------
+    for i, rule in enumerate(rules):
+        # ---------------------------
+        # Last layer always has 1 rule, binary classification setting
+        if i == len(rules) - 1:
+            rule_dict = {
+                "and_kernel": rule["and_kernel"][0],
+                "or_kernel": rule["or_kernel"][0],
+                "num_variables": rule["num_variables"],
+            }
+            program.extend(tensor_rule_to_strings(last_interp, rule_dict))
+            continue
+        # ---------------------------
+        pred_counts = {
+            0: last_interp["nullary"].shape[-1],
+            1: last_interp["unary"].shape[-1],
+            2: last_interp["binary"].shape[-1],
+        }
+        # If this is a hidden layer then it might have multiple definitions
+        for j in range(rule["and_kernel"].shape[0]):  # R
+            arity = rule["arities"][j]
+            pred_id = rule["arities"][:j].count(arity)  # new predicate ID
+            pred_id += pred_counts[arity]
+            rule_dict = {
+                "and_kernel": rule["and_kernel"][j],
+                "or_kernel": rule["or_kernel"][j],
+                "num_variables": rule["num_variables"],
+                "head": pred_name_map[arity].format(pred_id),
+            }
+            str_rule = tensor_rule_to_strings(last_interp, rule_dict)
+            program.extend(str_rule)
+        # Update interpretation for next layer
+        last_interp = {
+            "nullary": np.zeros((1, rule["arities"].count(0))),
+            "unary": np.zeros((1, num_objects, rule["arities"].count(1))),
+            "binary": np.zeros(
+                (1, num_objects, num_objects - 1, rule["arities"].count(2))
+            ),
+            "offsets": tuple(pred_counts.values()),
+        }
+    # ---------------------------
+    return program
 
 
 def tensor_interpretations_to_strings(
@@ -138,7 +203,7 @@ def tensor_interpretations_to_strings(
 
 
 def clingo_rule_check(
-    interpretation: Dict[str, np.ndarray], rule: List[str]
+    interpretation: Dict[str, np.ndarray], rule: List[str], verbose: bool = True
 ) -> np.ndarray:
     """Generate a logic program with each interpretation and rule to check satisfiability."""
     # interpretation {'nullary': (B, P0), 'unary': (B, O, P1), 'binary': (B, O, O-1, P2)}
@@ -151,9 +216,8 @@ def clingo_rule_check(
     num_objects = interpretation["unary"].shape[1]  # O
     rule_lines.append(f"obj(0..{num_objects-1}).")
     results: List[bool] = list()
-    for ground_interpretation in tqdm.tqdm(
-        tensor_interpretations_to_strings(interpretation)
-    ):
+    interps = tensor_interpretations_to_strings(interpretation)
+    for ground_interpretation in tqdm.tqdm(interps) if verbose else interps:
         results.append(run_clingo(rule_lines + ground_interpretation))
     # ---------------------------
     return np.array(results)  # (B,)
