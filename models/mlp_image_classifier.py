@@ -53,9 +53,7 @@ def process_task_id(task_id: tf.Tensor, input_desc: Dict[str, Any]) -> tf.Tensor
     return OneHotCategoricalInput(input_desc["num_categories"])(task_id)  # (B, T)
 
 
-def build_model(  # pylint: disable=too-many-locals
-    task_description: Dict[str, Any]
-) -> Dict[str, Any]:
+def build_model(task_description: Dict[str, Any]) -> Dict[str, Any]:
     """Build the predinet model."""
     # ---------------------------
     # Setup and process inputs

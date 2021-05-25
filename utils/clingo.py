@@ -103,7 +103,7 @@ def tensor_rule_to_strings(  # pylint: disable=too-many-locals
     return disjuncts
 
 
-def tensor_program_to_strings(  # pylint: disable=too-many-locals
+def tensor_program_to_strings(
     interpretation: Dict[str, np.ndarray], rules: List[Dict[str, np.ndarray]]
 ) -> List[str]:
     """Convert program tensor with respect to a given interpretation into strings."""

@@ -187,9 +187,7 @@ def predict_labels_from_facts(
     return predictions
 
 
-def build_model(  # pylint: disable=too-many-locals
-    task_description: Dict[str, Any]
-) -> Dict[str, Any]:
+def build_model(task_description: Dict[str, Any]) -> Dict[str, Any]:
     """Build the DNF trainable model."""
     # ---------------------------
     # Setup and process inputs

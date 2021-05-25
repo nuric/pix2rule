@@ -48,7 +48,7 @@ configurable: Dict[str, Dict[str, Any]] = {
 }
 
 
-class BaseDNF(tf.keras.layers.Layer):  # pylint: disable=too-many-instance-attributes
+class BaseDNF(tf.keras.layers.Layer):
     """Single layer that represents conjunction with permutation invariance."""
 
     PRED_KEYS = ["nullary", "unary", "binary"]
@@ -310,7 +310,7 @@ class BaseDNF(tf.keras.layers.Layer):  # pylint: disable=too-many-instance-attri
         return config
 
 
-class DNF(BaseDNF):  # pylint: disable=too-many-instance-attributes
+class DNF(BaseDNF):
     """Single layer that represents conjunction with permutation invariance."""
 
     def build(self, input_shape: Dict[str, tf.TensorShape]):
@@ -490,7 +490,7 @@ def fixed_weight_disjunction(
     return or_tensor + fixed_bias
 
 
-class WeightedDNF(BaseDNF):  # pylint: disable=too-many-instance-attributes
+class WeightedDNF(BaseDNF):
     """Single layer that represents DNF with permutation invariance."""
 
     def build(self, input_shape: Dict[str, tf.TensorShape]):
@@ -559,7 +559,7 @@ class WeightedDNF(BaseDNF):  # pylint: disable=too-many-instance-attributes
         # tensor (B, K, N, ..., N-X, RX, H)
         return tf.reduce_max(tensor, axis=axis)
 
-    def compute_disjunction(  # pylint: disable=too-many-locals
+    def compute_disjunction(
         self, disjuncts: Dict[str, tf.Tensor]
     ) -> Dict[str, tf.Tensor]:
         """Compute disjunction of given clauses."""
