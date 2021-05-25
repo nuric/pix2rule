@@ -22,8 +22,6 @@ jobs:
         - name: Install dependencies
           run: |
               python3 -m pip install --upgrade pip
-              python3 -m pip install --upgrade -r requirements.txt
-        - name: Debug pylint
-          run: python3 -m pylint --generate-rcfile
+              if [ -f ci_requirements.txt ]; then pip3 install -r ci_requirements.txt; fi
         - name: Invoke build
           run: python3 -m invoke build
