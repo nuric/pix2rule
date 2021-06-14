@@ -1,6 +1,6 @@
 # pix2rule
 
-This is the source code repository that accompanies paper titled "pix2rule: End-to-end Neuro-symbolic Rule Learning". It contains the models, dataset processing pipelines as well as the trianing scripts. It also contains experimental code that was used during the research process but are not integrated into the final results.
+This is the source code repository that accompanies paper titled "pix2rule: End-to-end Neuro-symbolic Rule Learning". It contains the models, dataset processing pipelines as well as the training scripts. It also contains experimental code that was used during the research process but are not integrated into the final results.
 
 ## Project Structure
 
@@ -19,13 +19,13 @@ The project contains some reusable parts and some that are integrated into the l
 
 ## Dependencies, unit testing, linting, type checking
 
-The dependencies for the respository can be installed using:
+The dependencies for the repository can be installed using:
 
 ```bash
 pip3 install -r requirements.txt
 ```
 
-and the `ci_requirements.txt` are a minimal set of dependencies to run the continous integration pipeline below.
+and the `ci_requirements.txt` are a minimal set of dependencies to run the continuous integration pipeline below.
 
 There are style checks, linting, type checking and unit tests maintained to ensure the integrity of this repository. The entire pipeline can be run using:
 
@@ -37,7 +37,9 @@ after installing `pyinvoke` dependency.
 
 ## DNF Layer
 
-The main contribution of the paper is the DNF Layer located in `components/dnf_layer.py` and in particular the `WeightedDNF` layer. It stacks two semi-symbolic layers and handles the permutation as well as the existential reduction. You'll also notice other implementations that we tried but decided not to purpsue in the final results. Along with the BaseDNF, you can reuse this layer as a TensorFlow Keras layer.
+The main contribution of the paper is the DNF Layer located in `components/dnf_layer.py` and in particular the `WeightedDNF` layer. It stacks two semi-symbolic layers and handles the permutation as well as the existential reduction. You'll also notice other implementations that we tried but decided not to pursue in the final results. Along with the BaseDNF, you can reuse this layer as a TensorFlow Keras layer.
+
+The layer expects a tensor dictionary with the shapes `{'nullary': (B, P0), 'unary': (B, O, P1), 'binary': (B, O, O-1, P2)}` where O is the number of objects and PX is the number of relations of respective arity. It uses the `compute_permutations` function to curate all object-variable binding and flatten the dictionary.
 
 ## Datasets
 
