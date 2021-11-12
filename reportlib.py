@@ -36,7 +36,7 @@ def create_report(model: tf.keras.Model, dataset: tf.data.Dataset) -> Dict[str, 
 def report_break():
     """Setup reporting breakpoint."""
     if _report.get("debug", False):
-        pdb.set_trace()
+        pdb.set_trace() # pylint: disable=forgotten-debug-statement
 
 
 class ReportLayer(tf.keras.layers.Layer):

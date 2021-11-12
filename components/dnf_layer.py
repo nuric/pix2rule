@@ -413,7 +413,7 @@ class DNF(BaseDNF):
         return rules
 
 
-class RealDNF(DNF):  # pylint: disable=too-many-ancestors
+class RealDNF(DNF):
     """Real valued DNF layer."""
 
     def compute_conjunction(self, in_tensor: tf.Tensor) -> Dict[str, tf.Tensor]:
