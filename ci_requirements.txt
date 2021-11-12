@@ -3,7 +3,7 @@
 numpy
 pandas
 tensorflow==2.4.1
-tensorflow_probability
+tensorflow_probability==0.12.2
 # Tools
 mlflow
 tqdm
